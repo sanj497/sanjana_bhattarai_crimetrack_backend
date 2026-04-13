@@ -2,11 +2,8 @@ services:
   - type: web
     name: crimetrack-backend
     runtime: node
-    rootDir: Backend
     buildCommand: npm install
     startCommand: npm start
     envVars:
       - key: NODE_ENV
         value: production
-      - key: PORT
-        value: 5000

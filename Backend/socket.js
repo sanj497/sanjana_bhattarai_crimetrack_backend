@@ -7,8 +7,8 @@ export const initSocket = (server) => {
   io = new Server(server, {
     cors: {
       origin: [
-        process.env.FRONTEND_URI || "http://localhost:3000", 
-        "http://localhost:5173", 
+        process.env.FRONTEND_URI || "http://localhost:3000",
+        "http://localhost:5173",
         "http://localhost:5174",
         "https://sanjana-bhattarai-crimetrack-frontend.vercel.app",
         "https://sanjana-bhattarai-crimetrack-frontend-mj2nt0eqc.vercel.app"
@@ -24,15 +24,15 @@ export const initSocket = (server) => {
     // Join user to their role-based room
     socket.on("authenticate", (userData) => {
       const { userId, role } = userData;
-      
+
       if (userId) {
         socket.userId = userId;
         socket.role = role;
-        
+
         // Join user-specific room
         socket.join(`user_${userId}`);
         console.log(`User ${userId} (${role}) joined their personal room`);
-        
+
         // Join role-based room
         if (role === "police") {
           socket.join("police_room");
@@ -98,9 +98,9 @@ export const broadcastToAll = (notification) => {
 // Role-based broadcast
 export const broadcastByRole = async (role, notification, excludeUserId = null) => {
   if (!io) return;
-  
+
   let roomName;
-  switch(role) {
+  switch (role) {
     case "police":
       roomName = "police_room";
       break;
@@ -113,7 +113,7 @@ export const broadcastByRole = async (role, notification, excludeUserId = null) 
     default:
       roomName = null;
   }
-  
+
   if (roomName) {
     if (excludeUserId) {
       // Emit to all in room except excluded user

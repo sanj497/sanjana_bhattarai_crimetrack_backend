@@ -22,22 +22,28 @@ connectDB();
 
 const app = express();
 
-// ── LOGGING ──────────────────────────────────────────────────────
+// ── ABSOLUTE CORS CONTROL (Highest Priority) ────────────────────
 app.use((req, res, next) => {
-  console.log(`[${new Date().toISOString()}] ${req.method} ${req.url} - Origin: ${req.headers.origin}`);
+  const origin = req.headers.origin;
+  // Reflect origin back or use wildcard
+  res.header("Access-Control-Allow-Origin", origin || "*");
+  res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, PATCH, OPTIONS");
+  res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization");
+  res.header("Access-Control-Allow-Credentials", "true");
+
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.url} - Origin: ${origin}`);
+
+  // Handle preflight
+  if (req.method === "OPTIONS") {
+    return res.status(200).json({});
+  }
   next();
 });
 
 app.get("/api/ping", (req, res) => {
-  res.json({ status: "alive", timestamp: new Date().toISOString() });
+  res.json({ status: "alive", timestamp: new Date().toISOString(), message: "CORS Optimized" });
 });
 
-// ── CORS (Universal Allowance) ───────────────────────────────────
-app.use(cors({
-  origin: "*",
-  methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "Accept"]
-}));
 
 const port = process.env.PORT || 5000;
 const server = createServer(app);
@@ -59,14 +65,15 @@ const cleanNoSQL = (obj) => {
   }
 };
 
+app.use(express.json({ limit: "50mb" })); 
+app.use(express.urlencoded({ extended: true, limit: "50mb" }));
+
 app.use((req, res, next) => {
   cleanNoSQL(req.body);
   cleanNoSQL(req.query);
   cleanNoSQL(req.params);
   next();
 });
-app.use(express.json({ limit: "50mb" })); 
-app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 
 // Rate limiting: Temporarily disabled to unblock deployment
 /*

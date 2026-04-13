@@ -14,7 +14,8 @@ import {
   getReportInteractions,
   getNearbyReports,
   getDashboardStats,
-  getCrimeById
+  getCrimeById,
+  getNearbyPolice
 } from "../Controllers/crimeController.js";
 
 const router = express.Router();
@@ -31,6 +32,9 @@ const handleUpload = (req, res, next) => {
 };
 
 // ── Routes ────────────────────────────────────────────────────────
+// ── PRIMARY CASE ACCESS ───────────────────────────────────────────
+router.get("/detail/:id",             authMiddleware, adminMiddleware,      getCrimeById);
+
 // ── Submission ────────────────────────────────────────────────────
 router.post("/report",        authMiddleware,                      handleUpload, createCrimeReport);
 
@@ -40,11 +44,11 @@ router.get("/mine",           authMiddleware,                      getMyCrimes);
 router.get("/stats",          authMiddleware, adminMiddleware,      getDashboardStats);
 router.get("/performance",    authMiddleware,                      getTransparencyStats);
 
-// ── Resource-Specific ─────────────────────────────────────────────
-router.get("/detail/:id",             authMiddleware, adminMiddleware,      getCrimeById);
+// ── Status & Workflow ─────────────────────────────────────────────
 router.put("/:id/status",            authMiddleware, adminMiddleware,      updateCrimeStatus);
 router.post("/:id/verify",    authMiddleware, adminMiddleware,      verifyCrimeReport);
 router.post("/:id/forward",   authMiddleware, adminMiddleware,      forwardToPolice);
+router.get("/:id/nearby-police", authMiddleware, adminMiddleware,   getNearbyPolice);
 
 // Community Dashboard
 router.get("/community",      authMiddleware,                      getPublicFeed);

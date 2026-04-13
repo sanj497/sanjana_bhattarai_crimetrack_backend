@@ -129,7 +129,7 @@ export const createCrimeReport = async (req, res) => {
     });
 
     const adminMessage = `🔴 URGENT: New crime report requires verification - "${crime.title}"`;
-    const generalMessage = `🚨 Crime Alert nearby: "${crime.title}" (${crime.crimeType})`;
+    const generalMessage = `📢 Community Alert: A new crime report has been filed: "${crime.title}" (${crime.crimeType}). Our team is currently verifying the incident.`;
 
     // 2. In-App Notifications (Bulk)
     if (adminIds.length) await bulkNotify(adminIds, crime._id, adminMessage);
@@ -187,7 +187,7 @@ export const createCrimeReport = async (req, res) => {
       crime,
       notifiedAdmins: adminIds.length,
       notifiedPolice: policeIds.length,
-      notifiedUsers: userIds.length,
+      notifiedUsers: citizenIds.length,
     });
   } catch (error) {
     console.error("createCrimeReport error:", error);
@@ -203,7 +203,7 @@ export const updateCrimeStatus = async (req, res) => {
   try {
     const { status, adminNotes } = req.body;
 
-    const validStatuses = ["Pending", "Verified", "Rejected", "ForwardedToPolice"];
+    const validStatuses = ["Pending", "Verified", "Rejected", "ForwardedToPolice", "UnderInvestigation", "Resolved"];
     if (!validStatuses.includes(status)) {
       return res.status(400).json({ error: `Invalid status. Must be one of: ${validStatuses.join(", ")}` });
     }
@@ -213,8 +213,13 @@ export const updateCrimeStatus = async (req, res) => {
       {
         status,
         ...(adminNotes && { adminNotes }),
-        ...(status === "Verified" && { verifiedBy: req.user._id, verifiedAt: new Date() }),
-        ...(status === "ForwardedToPolice" && { forwardedToPolice: true, forwardedAt: new Date() }),
+        ...(status === "Verified" && { "workflow.adminVerified": true, "workflow.verifiedBy": req.user._id, "workflow.verifiedAt": new Date() }),
+        ...(status === "ForwardedToPolice" && { "workflow.forwardedToPolice": true, "workflow.forwardedAt": new Date(), "workflow.forwardedBy": req.user._id }),
+        ...(status === "UnderInvestigation" && { "workflow.assignedToOfficer": req.user._id, "workflow.assignedAt": new Date() }),
+        ...(status === "Resolved" && { "workflow.resolvedAt": new Date(), "workflow.resolutionSummary": adminNotes }),
+        // For status history tracking
+        modifiedBy: req.user._id,
+        statusNotes: adminNotes || `Status updated to ${status}`
       },
       { new: true }
     ).populate("userId", "email name");
@@ -278,11 +283,20 @@ export const verifyCrimeReport = async (req, res) => {
 
     // 1. Notify the reporter
     if (crime.userId) {
+      const message = `✅ Your crime report "${crime.title}" has been verified by an admin.`;
+      
       await notifyUserCrimeStatus(
         crime.userId._id,
         crime._id,
-        `✅ Your crime report "${crime.title}" has been verified by an admin.`
+        message
       );
+
+      // Email Notification
+      if (crime.userId.email) {
+        sendCrimeAlertEmail(crime.userId, crime, message).catch((err) =>
+          console.error(`Verification email failed for ${crime.userId.email}:`, err.message)
+        );
+      }
     }
 
     // 2. Real-time notification to admin (ready for forwarding)
@@ -367,9 +381,16 @@ export const forwardToPolice = async (req, res) => {
           title: crime.title,
           message: `🚨 NEW CASE ASSIGNED: "${crime.title}" - Please begin investigation immediately.`,
           priority: "high",
-          actionRequired: true,
           timestamp: new Date().toISOString()
         });
+      }
+
+      // 3. Email notification to the assigned officer
+      const officer = await User.findById(assignedOfficerId).select("email username");
+      if (officer && officer.email) {
+        sendCrimeAlertEmail(officer, crime, `🚨 NEW CASE ASSIGNED: "${crime.title}" - Please begin investigation immediately.`).catch(err => 
+          console.error(`Email failed for officer ${officer.email}:`, err.message)
+        );
       }
     }
 
@@ -656,5 +677,39 @@ export const getCrimeById = async (req, res) => {
   } catch (error) {
     console.error("getCrimeById error:", error);
     res.status(500).json({ error: "Internal Clearance Error", details: error.message });
+  }
+};
+
+// @desc    Get nearby police officers for a case
+// @route   GET /api/report/:id/nearby-police
+export const getNearbyPolice = async (req, res) => {
+  try {
+    const crime = await Crime.findById(req.params.id);
+    if (!crime) return res.status(404).json({ error: "Case not found" });
+
+    const caseAddress = crime.location?.address || "";
+    
+    // Find all police officers
+    const policeOfficers = await User.find({ 
+      role: "police",
+      isOtpVerified: true 
+    }).select("username name email stationDistrict phone");
+
+    // Filter by matching district/location mentioned in address
+    const matchedPolice = policeOfficers.filter(police => {
+      if (!police.stationDistrict) return false;
+      const district = police.stationDistrict.toLowerCase();
+      const address = caseAddress.toLowerCase();
+      return address.includes(district) || district.includes(address);
+    });
+
+    res.json({
+      success: true,
+      count: matchedPolice.length,
+      policeOfficers: matchedPolice.length > 0 ? matchedPolice : policeOfficers.slice(0, 5) // Fallback to some police if no match
+    });
+  } catch (error) {
+    console.error("getNearbyPolice error:", error);
+    res.status(500).json({ error: "Failed to find officers" });
   }
 };

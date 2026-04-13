@@ -337,6 +337,9 @@ export const updateProfile = async (req, res) => {
     }
 
     if (username) user.username = username;
+    if (req.body.stationDistrict && user.role === "police") {
+      user.stationDistrict = req.body.stationDistrict;
+    }
 
     await user.save();
 

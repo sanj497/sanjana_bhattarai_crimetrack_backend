@@ -189,3 +189,39 @@ export const deleteComplaint = async (req, res) => {
     res.status(500).json({ success: false, message: err.message });
   }
 };
+
+// ─── ADMIN: Get nearby police officers for a complaint ────────────────────────
+export const getNearbyPolice = async (req, res) => {
+  try {
+    const complaint = await Complaint.findById(req.params.id);
+    if (!complaint) {
+      return res.status(404).json({ success: false, message: "Complaint not found." });
+    }
+
+    const complaintAddress = complaint.location?.address || "";
+    
+    // Simple logic: Find police whose stationDistrict is mentioned in or matches the complaint address
+    // In a real app, you'd use geospatial queries or a defined mapping.
+    // Here we'll search for police where stationDistrict is a substring of complaintAddress or vice versa.
+    
+    const policeOfficers = await User.find({
+      role: "police",
+      stationDistrict: { $ne: null }
+    }).select("username email stationDistrict");
+
+    // Filter by matching district (case-insensitive)
+    const matchedPolice = policeOfficers.filter(police => {
+      const district = police.stationDistrict.toLowerCase();
+      const address = complaintAddress.toLowerCase();
+      return address.includes(district) || district.includes(address);
+    });
+
+    res.status(200).json({
+      success: true,
+      count: matchedPolice.length,
+      policeOfficers: matchedPolice
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};

@@ -34,6 +34,10 @@ const userSchema = new mongoose.Schema(
         phone: String,
       }
     ],
+    stationDistrict: {
+      type: String,
+      default: null,
+    },
   },
   { timestamps: true }
 );

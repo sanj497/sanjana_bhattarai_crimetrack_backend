@@ -6,6 +6,7 @@ import {
   getAllComplaints,
   updateComplaintStatus,
   deleteComplaint,
+  getNearbyPolice,
 } from "../Controllers/complain.js";
 import { authMiddleware, adminMiddleware } from "../middleware/authMiddleware.js";
 
@@ -26,6 +27,9 @@ router.get("/:id/track", authMiddleware, trackComplaintStatus);
 
 // GET    /api/complaints             → Get all complaints (?status=Pending&category=Theft)
 router.get("/", authMiddleware, adminMiddleware, getAllComplaints);
+
+// GET    /api/complaints/:id/nearby-police → Get nearby police officers
+router.get("/:id/nearby-police", authMiddleware, adminMiddleware, getNearbyPolice);
 
 // PATCH  /api/complaints/:id/status  → Update complaint status
 router.patch("/:id/status", authMiddleware, adminMiddleware, updateComplaintStatus);

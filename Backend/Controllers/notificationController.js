@@ -1,4 +1,5 @@
 import Notification from "../Models/Notification.js";
+import { sendNotificationToUser } from "../socket.js";
 
 // GET /api/notifications  — paginated, newest first
 export const getUserNotifications = async (req, res) => {
@@ -44,11 +45,22 @@ export const markAllAsRead = async (req, res) => {
 // Helper: Notify a user about a crime status change
 export const notifyUserCrimeStatus = async (userId, crimeId, message) => {
   try {
-    return await Notification.create({
+    const notification = await Notification.create({
       userId,
       crimeId,
       message,
     });
+    
+    // PUSH VIA SOCKET
+    sendNotificationToUser(userId, {
+      _id: notification._id,
+      message,
+      crimeId,
+      createdAt: notification.createdAt,
+      isRead: false
+    });
+
+    return notification;
   } catch (error) {
     console.error("notifyUserCrimeStatus error:", error);
   }

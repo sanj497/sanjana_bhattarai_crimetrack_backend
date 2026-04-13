@@ -21,6 +21,10 @@ dotenv.config();
 connectDB();
 
 const app = express();
+app.use((req, res, next) => {
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.url} - Origin: ${req.headers.origin}`);
+  next();
+});
 const port = process.env.PORT || 5000;
 const server = createServer(app);
 

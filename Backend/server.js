@@ -22,21 +22,18 @@ connectDB();
 
 const app = express();
 
-// ── MANUAL CORS & LOGGING (Highest Priority) ─────────────────────
-// Primary Frontend: https://sanjana-bhattarai-crimetrack-frontend-mj2nt0eqc.vercel.app
+// ── LOGGING ──────────────────────────────────────────────────────
 app.use((req, res, next) => {
-  res.setHeader("Access-Control-Allow-Origin", req.headers.origin || "*");
-  res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, PATCH, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, Accept");
-  res.setHeader("Access-Control-Allow-Credentials", "true");
-  
   console.log(`[${new Date().toISOString()}] ${req.method} ${req.url} - Origin: ${req.headers.origin}`);
-  
-  if (req.method === "OPTIONS") {
-    return res.status(204).end();
-  }
   next();
 });
+
+// ── CORS (Universal Allowance) ───────────────────────────────────
+app.use(cors({
+  origin: "*",
+  methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "Accept"]
+}));
 
 const port = process.env.PORT || 5000;
 const server = createServer(app);
@@ -45,8 +42,6 @@ const server = createServer(app);
 initSocket(server);
 
 // ── STANDARD MIDDLEWARE ──────────────────────────────────────────
-// app.use(cors(...)); // Manual implementation above instead
-// app.use(helmet()); 
 // Custom Express 5 compatible NoSQL Injection Prevention
 const cleanNoSQL = (obj) => {
   if (obj && typeof obj === 'object') {

@@ -47,12 +47,7 @@ const ReportCrime = () => {
     setMsg(""); setError(""); setLoading(true);
     try {
       const token = localStorage.getItem("token");
-      if (!token) {
-        // Capture form data in session storage maybe? Or just redirect.
-        // For now, redirect to login with a clear state
-        navigate("/login", { state: { from: location, message: "Authentication required to file a secure report." } });
-        return;
-      }
+      if (!token) throw new Error("No token found. Please login first.");
       const fd = new FormData();
       Object.entries(form).forEach(([k, v]) => fd.append(k, String(v)));
       files.forEach((f) => fd.append("evidence", f));
@@ -547,10 +542,8 @@ const ReportCrime = () => {
                 >
                   {loading ? (
                     <><div className="rc-spinner" /> Submitting…</>
-                  ) : !isLoggedIn ? (
-                    <>Verify & Submit (Login Required) 🔐</>
                   ) : (
-                    <>Submit Secure Report 🚨</>
+                    <>Submit Report 🚨</>
                   )}
                 </button>
               </div>

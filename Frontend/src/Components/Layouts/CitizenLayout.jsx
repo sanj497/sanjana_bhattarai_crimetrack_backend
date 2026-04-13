@@ -90,17 +90,10 @@ export default function CitizenLayout() {
 
         {/* BOTTOM USER/LOGOUT AREA */}
         <div className="p-4 border-t border-[#112445]">
-          {localStorage.getItem("token") ? (
-            <Link to="/logout" title={!sidebarOpen ? "Logout" : ""} className="flex items-center gap-3 px-3 py-3 rounded-[10px] text-gray-400 hover:text-white hover:bg-[#112445] transition-colors">
-              <LogOut size={20} />
-              {sidebarOpen && <span>Disconnect</span>}
-            </Link>
-          ) : (
-            <Link to="/login" title={!sidebarOpen ? "Sign In" : ""} className="flex items-center gap-3 px-3 py-3 rounded-[10px] text-[#00B8D9] hover:bg-[#112445] transition-colors">
-              <LogOut size={20} className="rotate-180" />
-              {sidebarOpen && <span>Sign In</span>}
-            </Link>
-          )}
+          <Link to="/logout" title={!sidebarOpen ? "Logout" : ""} className="flex items-center gap-3 px-3 py-3 rounded-[10px] text-gray-400 hover:text-white hover:bg-[#112445] transition-colors">
+            <LogOut size={20} />
+            {sidebarOpen && <span>Disconnect</span>}
+          </Link>
         </div>
       </aside>
 

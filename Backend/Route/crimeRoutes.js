@@ -39,12 +39,12 @@ router.post("/:id/verify",    authMiddleware, adminMiddleware,      verifyCrimeR
 router.post("/:id/forward",   authMiddleware, adminMiddleware,      forwardToPolice);
 
 // Transparency & Performance
-router.get("/performance",    optionalAuth,                      getTransparencyStats);
+router.get("/performance",    authMiddleware,                      getTransparencyStats);
 
 // Community Dashboard
-router.get("/community",      optionalAuth,                      getPublicFeed);
-router.get("/nearby",         optionalAuth,                      getNearbyReports);
+router.get("/community",      authMiddleware,                      getPublicFeed);
+router.get("/nearby",         authMiddleware,                      getNearbyReports);
 router.post("/:id/responses", authMiddleware,                      addReportInteraction);
-router.get("/:id/responses",  optionalAuth,                      getReportInteractions);
+router.get("/:id/responses",  authMiddleware,                      getReportInteractions);
 
 export default router;

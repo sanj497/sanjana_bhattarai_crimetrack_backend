@@ -242,31 +242,24 @@ export default function CommunityBoard() {
                     </div>
 
                     {/* Post Interface */}
-                    {localStorage.getItem("token") ? (
-                      <form onSubmit={handlePostResponse} className="relative sticky bottom-0 mt-10">
-                        <div className="bg-white rounded-[32px] border-2 border-slate-100 shadow-2xl p-2 flex items-center gap-2 focus-within:border-blue-500 transition-all">
-                          <input 
-                            type="text" 
-                            className="flex-1 px-4 py-3 bg-transparent text-sm font-semibold outline-none text-slate-700"
-                            placeholder="Add perspective or update..."
-                            value={newResponse}
-                            onChange={(e) => setNewResponse(e.target.value)}
-                          />
-                          <button 
-                            disabled={submitting}
-                            className="h-10 w-10 bg-[#0B1F3B] text-white flex items-center justify-center rounded-2xl hover:bg-blue-600 transition-all disabled:opacity-30 shadow-xl active:scale-95"
-                          >
-                            <Send size={18} />
-                          </button>
-                        </div>
-                        <p className="text-[9px] text-slate-300 font-bold text-center mt-3 uppercase tracking-widest">Public Contribution Policy Active</p>
-                      </form>
-                    ) : (
-                      <div className="relative sticky bottom-0 mt-10 bg-[#F7F9FC] p-6 rounded-[24px] border border-dashed border-slate-200 text-center">
-                         <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-3">Login to participate in discussion</p>
-                         <Link to="/login" className="inline-block bg-[#0B1F3B] text-white px-6 py-2 rounded-xl text-xs font-bold hover:bg-blue-600 transition-all shadow-lg">Sign In</Link>
+                    <form onSubmit={handlePostResponse} className="relative sticky bottom-0 mt-10">
+                      <div className="bg-white rounded-[32px] border-2 border-slate-100 shadow-2xl p-2 flex items-center gap-2 focus-within:border-blue-500 transition-all">
+                        <input 
+                          type="text" 
+                          className="flex-1 px-4 py-3 bg-transparent text-sm font-semibold outline-none text-slate-700"
+                          placeholder="Add perspective or update..."
+                          value={newResponse}
+                          onChange={(e) => setNewResponse(e.target.value)}
+                        />
+                        <button 
+                          disabled={submitting}
+                          className="h-10 w-10 bg-[#0B1F3B] text-white flex items-center justify-center rounded-2xl hover:bg-blue-600 transition-all disabled:opacity-30 shadow-xl active:scale-95"
+                        >
+                          <Send size={18} />
+                        </button>
                       </div>
-                    )}
+                      <p className="text-[9px] text-slate-300 font-bold text-center mt-3 uppercase tracking-widest">Public Contribution Policy Active</p>
+                    </form>
                  </div>
               </div>
             </div>

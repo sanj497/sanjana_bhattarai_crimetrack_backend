@@ -88,9 +88,8 @@ function App() {
           <Route path="/emergency-police" element={<EmergencyContactsApp />} />
         </Route>
 
-        {/* ── COLLABORATIVE PORTAL (Citizen Layout) ──────────────────── */}
-        {/* Pages are visible to all; features within them require login via role */}
-        <Route element={<CitizenLayout />}>
+        {/* ── CITIZEN ROUTES (role: user) ────────────────────────────── */}
+        <Route element={<CitizenRoute><CitizenLayout /></CitizenRoute>}>
           <Route path="/citizen" element={<CitizenDashboard />} />
           <Route path="/community" element={<CommunityBoard />} />
           <Route path="/transparency" element={<TransparencyHub />} />

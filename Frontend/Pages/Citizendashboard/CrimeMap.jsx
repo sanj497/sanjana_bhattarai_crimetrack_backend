@@ -5,7 +5,7 @@ import React from "react";
 import { useNavigate } from "react-router-dom";
 import { Map as MapIcon, ShieldAlert, Globe, Crosshair, AlertTriangle, ShieldCheck } from "lucide-react";
 
-const API = "https://sanjana-bhattarai-crimetrack-backend.onrender.com/api/report";
+const API = `${import.meta.env.VITE_BACKEND_URL}/api/report`;
 
 const SEVERITY_COLOR = {
   Critical: "#ef4444",

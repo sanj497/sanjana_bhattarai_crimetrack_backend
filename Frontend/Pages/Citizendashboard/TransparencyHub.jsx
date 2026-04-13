@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { BarChart3, TrendingUp, CheckCircle, Clock, Shield, AlertCircle, Info, UserCheck } from 'lucide-react';
 
-const API_BASE = "https://sanjana-bhattarai-crimetrack-backend.onrender.com/api/report";
+const API_BASE = `${import.meta.env.VITE_BACKEND_URL}/api/report`;
 
 export default function TransparencyHub() {
   const [stats, setStats] = useState(null);

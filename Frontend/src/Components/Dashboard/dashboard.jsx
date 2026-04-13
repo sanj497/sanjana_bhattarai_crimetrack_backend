@@ -26,7 +26,7 @@ export default function Dashboard() {
     const fetchDashboardData = async () => {
         try {
             const token = localStorage.getItem("token");
-            const res = await fetch("https://sanjana-bhattarai-crimetrack-backend.onrender.com/api/report/stats", {
+            const res = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/report/stats`, {
                 headers: {
                     "Authorization": `Bearer ${token}`
                 }

@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import React from "react";
 
-const API = "https://sanjana-bhattarai-crimetrack-backend.onrender.com/api";
+const API = `${import.meta.env.VITE_BACKEND_URL}/api`;
 const CATEGORIES = ["Theft", "Assault", "Vandalism", "Fraud", "Other"];
 const STATUSES   = ["Pending", "Verified", "In Progress", "Solved"];
 

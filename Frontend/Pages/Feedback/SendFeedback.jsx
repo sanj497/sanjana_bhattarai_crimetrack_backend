@@ -1,7 +1,7 @@
 import { useState } from "react";
 import axios from "axios";
 import React from "react";
-const API = "https://sanjana-bhattarai-crimetrack-backend.onrender.com/api/feedback/auth";
+const API = `${import.meta.env.VITE_BACKEND_URL}/api/feedback/auth`;
 
 export default function SendFeedback() {
   const [form, setForm] = useState({ message: "", rating: "" });

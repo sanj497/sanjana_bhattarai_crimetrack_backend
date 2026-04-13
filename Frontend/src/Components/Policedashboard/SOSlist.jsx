@@ -8,7 +8,7 @@ const SOSList = () => {
   const fetchSOS = async () => {
     try {
       const res = await axios.get(
-        "https://sanjana-bhattarai-crimetrack-backend.onrender.com/api/emergency/sos"
+        `${import.meta.env.VITE_BACKEND_URL}/api/emergency/sos`
       );
 
       setSosData(res.data.data);

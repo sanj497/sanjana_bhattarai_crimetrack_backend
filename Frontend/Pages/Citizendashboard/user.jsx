@@ -11,7 +11,7 @@ const Users = () => {
       const token = localStorage.getItem("token");
 
       const res = await axios.get(
-        "https://sanjana-bhattarai-crimetrack-backend.onrender.com/api/auth/users",
+        `${import.meta.env.VITE_BACKEND_URL}/api/auth/users`,
         {
           headers: {
             Authorization: `Bearer ${token}`,

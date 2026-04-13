@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
 import React from "react";
-const API = "https://sanjana-bhattarai-crimetrack-backend.onrender.com/api/feedback";
+const API = `${import.meta.env.VITE_BACKEND_URL}/api/feedback`;
 
 export default function AdminFeedback() {
   const [feedbacks, setFeedbacks] = useState([]);

@@ -23,8 +23,8 @@ import {
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
-const API_URL = "https://sanjana-bhattarai-crimetrack-backend.onrender.com/api/report";
-const SOCKET_URL = "https://sanjana-bhattarai-crimetrack-backend.onrender.com";
+const API_URL = `${import.meta.env.VITE_BACKEND_URL}/api/report`;
+const SOCKET_URL = `${import.meta.env.VITE_BACKEND_URL}`;
 
 import { io } from "socket.io-client";
 

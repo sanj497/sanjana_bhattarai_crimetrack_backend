@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Bell, Check, Trash2, ShieldAlert, FileText, CheckCircle2, MoreHorizontal, Filter } from "lucide-react";
 
-const API_BASE = "https://sanjana-bhattarai-crimetrack-backend.onrender.com/api/notifications";
+const API_BASE = `${import.meta.env.VITE_BACKEND_URL}/api/notifications`;
 
 export default function NotificationCenter() {
   const [notifications, setNotifications] = useState([]);

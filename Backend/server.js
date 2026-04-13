@@ -29,22 +29,12 @@ initSocket(server);
 
 // ── STANDARD MIDDLEWARE & CORS ────────────────────────────────────
 app.use(cors({
-  origin: (origin, callback) => {
-    const allowed = [
-      "http://localhost:5173",
-      "https://sanjana-bhattarai-crimetrack-fronte.vercel.app",
-      process.env.FRONTEND_URI
-    ];
-    // Dynamic allowance for branch/preview deploys from vercel
-    if (!origin || allowed.includes(origin) || origin.endsWith(".vercel.app")) {
-      callback(null, true);
-    } else {
-      callback(new Error("Not allowed by CORS"));
-    }
-  },
+  origin: true, // Allow all origins during this staging phase to unblock deployment
   credentials: true,
   methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization"]
+  allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "Accept"],
+  preflightContinue: false,
+  optionsSuccessStatus: 204
 }));
 
 app.use(helmet()); // Security headers

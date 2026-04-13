@@ -21,27 +21,31 @@ dotenv.config();
 connectDB();
 
 const app = express();
+
+// ── MANUAL CORS & LOGGING (Highest Priority) ─────────────────────
 app.use((req, res, next) => {
+  res.setHeader("Access-Control-Allow-Origin", req.headers.origin || "*");
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, PATCH, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, Accept");
+  res.setHeader("Access-Control-Allow-Credentials", "true");
+  
   console.log(`[${new Date().toISOString()}] ${req.method} ${req.url} - Origin: ${req.headers.origin}`);
+  
+  if (req.method === "OPTIONS") {
+    return res.status(204).end();
+  }
   next();
 });
+
 const port = process.env.PORT || 5000;
 const server = createServer(app);
 
 // Initialize socket
 initSocket(server);
 
-// ── STANDARD MIDDLEWARE & CORS ────────────────────────────────────
-app.use(cors({
-  origin: true, // Allow all origins during this staging phase to unblock deployment
-  credentials: true,
-  methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "Accept"],
-  preflightContinue: false,
-  optionsSuccessStatus: 204
-}));
-
-app.use(helmet()); // Security headers
+// ── STANDARD MIDDLEWARE ──────────────────────────────────────────
+// app.use(cors(...)); // Manual implementation above instead
+// app.use(helmet()); 
 // Custom Express 5 compatible NoSQL Injection Prevention
 const cleanNoSQL = (obj) => {
   if (obj && typeof obj === 'object') {
@@ -61,10 +65,11 @@ app.use((req, res, next) => {
   cleanNoSQL(req.params);
   next();
 });
-app.use(express.json({ limit: "10kb" })); 
-app.use(express.urlencoded({ extended: true, limit: "10kb" }));
+app.use(express.json({ limit: "50mb" })); 
+app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 
-// Rate limiting: 100 requests per 15 minutes
+// Rate limiting: Temporarily disabled to unblock deployment
+/*
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 100,
@@ -73,6 +78,7 @@ const limiter = rateLimit({
   legacyHeaders: false,
 });
 app.use("/api/", limiter);
+*/
 
 // ── ROUTES ───────────────────────────────────────────────────────
 app.use("/api/auth", userroute);

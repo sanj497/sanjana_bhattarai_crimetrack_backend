@@ -21,7 +21,7 @@ const Forwardtopolice = () => {
     try {
       // FIXED: Use the FORWARD endpoint instead of VERIFY
       const res = await fetch(
-        `http://localhost:5000/api/report/${id}/forward`, // Changed from /verify to /forward
+        `https://sanjana-bhattarai-crimetrack-backend.onrender.com/api/report/${id}/forward`, // Changed from /verify to /forward
         {
           method: "POST",
           headers: {

@@ -19,7 +19,7 @@ const Policereport = () => {
           return;
         }
 
-        const res = await fetch("http://localhost:5000/api/report", {
+        const res = await fetch("https://sanjana-bhattarai-crimetrack-backend.onrender.com/api/report", {
           headers: { Authorization: `Bearer ${token}` },
         });
 
@@ -48,7 +48,7 @@ const Policereport = () => {
     try {
       const token = localStorage.getItem("token");
 
-      await fetch(`http://localhost:5000/api/report/${id}/status`, {
+      await fetch(`https://sanjana-bhattarai-crimetrack-backend.onrender.com/api/report/${id}/status`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",

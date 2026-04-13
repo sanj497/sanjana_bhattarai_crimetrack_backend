@@ -23,8 +23,8 @@ import {
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
-const API_URL = "http://localhost:5000/api/report";
-const SOCKET_URL = "http://localhost:5000";
+const API_URL = "https://sanjana-bhattarai-crimetrack-backend.onrender.com/api/report";
+const SOCKET_URL = "https://sanjana-bhattarai-crimetrack-backend.onrender.com";
 
 import { io } from "socket.io-client";
 
@@ -138,7 +138,7 @@ export default function AdminReport() {
   const handleAction = async (id, status) => {
     const token = localStorage.getItem("token");
     try {
-      const res = await fetch(`http://localhost:5000/api/report/${id}/status`, {
+      const res = await fetch(`https://sanjana-bhattarai-crimetrack-backend.onrender.com/api/report/${id}/status`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",

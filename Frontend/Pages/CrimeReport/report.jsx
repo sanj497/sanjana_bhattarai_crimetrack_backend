@@ -46,7 +46,7 @@ const ReportCrime = () => {
       const fd = new FormData();
       Object.entries(form).forEach(([k, v]) => fd.append(k, String(v)));
       files.forEach((f) => fd.append("evidence", f));
-      const res = await fetch("http://localhost:5000/api/report/report", {
+      const res = await fetch("https://sanjana-bhattarai-crimetrack-backend.onrender.com/api/report/report", {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
         body: fd,

@@ -23,7 +23,7 @@ const Verify = () => {
       }
 
       try {
-        const response = await fetch(`http://localhost:5000/api/report/${id}`, {
+        const response = await fetch(`https://sanjana-bhattarai-crimetrack-backend.onrender.com/api/report/${id}`, {
           method: "GET",
           headers: {
             "Authorization": `Bearer ${token}`,
@@ -65,7 +65,7 @@ const Verify = () => {
 
     try {
       const response = await fetch(
-        `http://localhost:5000/api/report/${id}/verify`,
+        `https://sanjana-bhattarai-crimetrack-backend.onrender.com/api/report/${id}/verify`,
         {
           method: "POST",
           headers: {

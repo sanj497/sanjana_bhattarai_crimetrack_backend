@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import React from "react";
 
-const API_BASE = "http://localhost:5000/api/emergency";
+const API_BASE = "https://sanjana-bhattarai-crimetrack-backend.onrender.com/api/emergency";
 
 const categoryConfig = {
   police: { icon: "🚔", color: "bg-blue-600", light: "bg-blue-50 border-blue-200 text-blue-700" },

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { User, Mail, Shield, Plus, Trash2, Save, CheckCircle, AlertCircle } from "lucide-react";
 
-const API_BASE = "http://localhost:5000/api/auth";
+const API_BASE = "https://sanjana-bhattarai-crimetrack-backend.onrender.com/api/auth";
 
 export default function CitizenSettings() {
   const [profile, setProfile] = useState({ username: "", email: "", guardians: [] });

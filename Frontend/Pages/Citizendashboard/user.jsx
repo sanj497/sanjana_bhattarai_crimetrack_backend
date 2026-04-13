@@ -11,7 +11,7 @@ const Users = () => {
       const token = localStorage.getItem("token");
 
       const res = await axios.get(
-        "http://localhost:5000/api/auth/users",
+        "https://sanjana-bhattarai-crimetrack-backend.onrender.com/api/auth/users",
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -37,7 +37,7 @@ const Users = () => {
       const token = localStorage.getItem("token");
 
       await axios.put(
-        `http://localhost:5000/api/auth/update-role/${id}`,
+        `https://sanjana-bhattarai-crimetrack-backend.onrender.com/api/auth/update-role/${id}`,
         { role: "police" },
         {
           headers: {
@@ -58,7 +58,7 @@ const Users = () => {
       const token = localStorage.getItem("token");
 
       await axios.put(
-        `http://localhost:5000/api/auth/update-role/${id}`,
+        `https://sanjana-bhattarai-crimetrack-backend.onrender.com/api/auth/update-role/${id}`,
         { role: "user" },
         {
           headers: {

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
 import React from "react";
-const API = "http://localhost:5000/api/feedback";
+const API = "https://sanjana-bhattarai-crimetrack-backend.onrender.com/api/feedback";
 
 export default function AdminFeedback() {
   const [feedbacks, setFeedbacks] = useState([]);

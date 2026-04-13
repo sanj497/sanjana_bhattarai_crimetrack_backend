@@ -26,7 +26,7 @@ export default function Dashboard() {
     const fetchDashboardData = async () => {
         try {
             const token = localStorage.getItem("token");
-            const res = await fetch("http://localhost:5000/api/report/stats", {
+            const res = await fetch("https://sanjana-bhattarai-crimetrack-backend.onrender.com/api/report/stats", {
                 headers: {
                     "Authorization": `Bearer ${token}`
                 }

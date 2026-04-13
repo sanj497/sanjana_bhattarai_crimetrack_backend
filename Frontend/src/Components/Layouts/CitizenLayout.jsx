@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Link, useLocation, Outlet } from "react-router-dom";
-import { LayoutDashboard, FileText, Bell, MessageSquare, Settings, AlertTriangle, ShieldAlert, LogOut, ChevronLeft, ChevronRight, Shield, Users, BarChart3 } from "lucide-react";
+import { LayoutDashboard, FileText, Bell, MessageSquare, Settings, AlertTriangle, ShieldAlert, LogOut, ChevronLeft, ChevronRight, Shield, Users, BarChart3, MapPin } from "lucide-react";
 
 const getUser = () => {
   try { return JSON.parse(localStorage.getItem("user")) || {}; } catch { return {}; }
@@ -9,10 +9,10 @@ const getUser = () => {
 const navItems = [
   { icon: <LayoutDashboard size={20} />, label: "Overview", path: "/citizen" },
   { icon: <Users size={20} />, label: "Community", path: "/community" },
+  { icon: <MapPin size={20} />, label: "Safety Map", path: "/map-citizen" },
   { icon: <BarChart3 size={20} />, label: "Transparency", path: "/transparency" },
-  { icon: <FileText size={20} />, label: "Documents", path: "#" },
   { icon: <Bell size={20} />, label: "Notifications", path: "/notifications" },
-  { icon: <MessageSquare size={20} />, label: "Complaints", path: "/Co" },
+  { icon: <MessageSquare size={20} />, label: "Complaints", path: "/complaints" },
   { icon: <Settings size={20} />, label: "Settings", path: "/citizen/settings" },
 ];
 
@@ -23,9 +23,9 @@ export default function CitizenLayout() {
   const getPageTitle = () => {
     const item = navItems.find(i => i.path === location.pathname);
     if (item) return item.label;
-    if (location.pathname === "/Report") return "Report Crime";
+    if (location.pathname === "/report") return "Report Crime";
     if (location.pathname === "/emergency") return "Emergency Services";
-    if (location.pathname === "/Feedback") return "Submit Feedback";
+    if (location.pathname === "/feedback") return "Submit Feedback";
     return "Citizen Portal";
   };
 
@@ -72,7 +72,7 @@ export default function CitizenLayout() {
 
           <div className={`mt-6 mb-2 border-t border-[#112445] pt-6 px-3 text-xs font-semibold uppercase tracking-wider text-gray-500 ${!sidebarOpen && "hidden"}`}>Priority Actions</div>
           
-          <Link to="/Report" title={!sidebarOpen ? "Report Crime" : ""} className={`flex items-center gap-3 px-3 py-3 rounded-[10px] transition-colors ${location.pathname === "/Report" ? "bg-red-500/10 text-[#E63946] font-semibold" : "text-gray-300 hover:bg-[#112445] hover:text-[#E63946]"}`}>
+          <Link to="/report" title={!sidebarOpen ? "Report Crime" : ""} className={`flex items-center gap-3 px-3 py-3 rounded-[10px] transition-colors ${location.pathname === "/report" ? "bg-red-500/10 text-[#E63946] font-semibold" : "text-gray-300 hover:bg-[#112445] hover:text-[#E63946]"}`}>
             <AlertTriangle size={20} />
             {sidebarOpen && <span className="truncate">Report Crime</span>}
           </Link>
@@ -82,7 +82,7 @@ export default function CitizenLayout() {
             {sidebarOpen && <span className="truncate font-bold">Emergency Signal</span>}
           </Link>
           
-          <Link to="/Feedback" title={!sidebarOpen ? "Feedback" : ""} className={`flex items-center gap-3 px-3 py-3 rounded-[10px] transition-colors mt-2 ${location.pathname === "/Feedback" ? "bg-[#1E5EFF]/10 text-[#00B8D9] font-semibold" : "text-gray-300 hover:bg-[#112445] hover:text-white"}`}>
+          <Link to="/feedback" title={!sidebarOpen ? "Feedback" : ""} className={`flex items-center gap-3 px-3 py-3 rounded-[10px] transition-colors mt-2 ${location.pathname === "/feedback" ? "bg-[#1E5EFF]/10 text-[#00B8D9] font-semibold" : "text-gray-300 hover:bg-[#112445] hover:text-white"}`}>
             <MessageSquare size={20} />
             {sidebarOpen && <span className="truncate">Submit Feedback</span>}
           </Link>

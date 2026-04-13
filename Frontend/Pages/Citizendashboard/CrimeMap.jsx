@@ -87,9 +87,17 @@ export default function CrimeMap() {
       // Fetch Global
       const gRes = await fetch(`${API}/community`, { headers });
       const gJson = await gRes.json();
+      
+      // Fetch SOS
+      const sRes = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/emergency/sos`, { headers });
+      const sJson = await sRes.json();
+
       if (gJson.success) {
-        setReports(gJson.reports);
-        plotMarkers(gJson.reports);
+        const reportsData = gJson.reports;
+        const sosData = sJson.success ? sJson.data.map(s => ({...s, _isSOS: true, crimeType: "🚨 EMERGENCY SOS", severity: "Critical"})) : [];
+        const combined = [...reportsData, ...sosData];
+        setReports(combined);
+        plotMarkers(combined);
       }
 
       // Fetch Nearby if location available
@@ -114,27 +122,29 @@ export default function CrimeMap() {
     group.clearLayers();
     
     data.forEach((r) => {
-      const lat = r.location?.lat;
-      const lng = r.location?.lng;
+      const lat = r._isSOS ? r.latitude : r.location?.lat;
+      const lng = r._isSOS ? r.longitude : r.location?.lng;
       if (!lat || !lng) return;
 
-      const color = SEVERITY_COLOR[r.severity] || "#888";
+      const color = r._isSOS ? "#ff0000" : (SEVERITY_COLOR[r.severity] || "#888");
       const marker = L.circleMarker([lat, lng], {
-        radius: r.severity === "Critical" ? 12 : 9,
+        radius: r._isSOS ? 15 : (r.severity === "Critical" ? 12 : 9),
         fillColor: color,
         color: "#fff",
-        weight: 2,
-        fillOpacity: 0.8
+        weight: r._isSOS ? 4 : 2,
+        fillOpacity: r._isSOS ? 1 : 0.8,
+        className: r._isSOS ? "sos-marker-pulse" : ""
       });
 
       marker.bindPopup(`
-        <div style="font-family: Inter, sans-serif; padding: 4px;">
+        <div style="font-family: Inter, sans-serif; padding: 4px; min-width:150px;">
           <b style="color:${color}; font-size:14px;">${r.crimeType}</b>
-          <p style="font-size:11px; color:#64748b; margin-top:2px;">${r.location.address}</p>
+          <p style="font-size:11px; color:#64748b; margin-top:2px;">${r._isSOS ? "Live Dispatch Location" : r.location.address}</p>
           <div style="margin-top:8px; display:flex; gap:4px;">
-            <span style="font-size:10px; background:${color}15; color:${color}; padding:2px 6px; border-radius:4px; font-weight:bold;">${r.severity}</span>
-            <span style="font-size:10px; background:#f1f5f9; color:#475569; padding:2px 6px; border-radius:4px;">${r.status}</span>
+            <span style="font-size:10px; background:${color}15; color:${color}; padding:2px 6px; border-radius:4px; font-weight:bold;">${r._isSOS ? "CRITICAL" : r.severity}</span>
+            <span style="font-size:10px; background:#f1f5f9; color:#475569; padding:2px 6px; border-radius:4px;">${r.status || 'Active'}</span>
           </div>
+          ${r._isSOS ? `<p style="font-size:9px; color:#ff0000; font-weight:bold; margin-top:8px; text-transform:uppercase;">Responder Unit Notified</p>` : ''}
         </div>
       `);
       
@@ -146,7 +156,9 @@ export default function CrimeMap() {
 
   const focusReport = (r) => {
     setSelected(r._id);
-    mapInstance.current.flyTo([r.location.lat, r.location.lng], 16);
+    const lat = r._isSOS ? r.latitude : r.location.lat;
+    const lng = r._isSOS ? r.longitude : r.location.lng;
+    mapInstance.current.flyTo([lat, lng], 16);
     setTimeout(() => markersRef.current[r._id]?.openPopup(), 600);
   };
 

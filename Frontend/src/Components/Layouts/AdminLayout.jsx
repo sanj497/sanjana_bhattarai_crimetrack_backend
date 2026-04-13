@@ -29,11 +29,12 @@ export default function AdminLayout() {
     const menu = useMemo(
         () => [
             { name: "Dashboard",     icon: <LayoutDashboard size={20} />, path: "/dashboard" },
-            { name: "Live Map",      icon: <MapIcon size={20} />,         path: "/Map"       },
+            { name: "Live Map",      icon: <MapIcon size={20} />,         path: "/admin/map"       },
             { name: "Report Desk",   icon: <FileText size={20} />,        path: "/adReport"  },
             { name: "User Directory",icon: <Users size={20} />,           path: "/user"      },
             { name: "Case Tracker",  icon: <Send size={20} />,            path: "/forward-admin" },
-            { name: "Complaints",    icon: <Settings size={20} />,        path: "/Comp"      },
+            { name: "Complaints",    icon: <Settings size={20} />,        path: "/admin/complaints"      },
+            { name: "Notifications", icon: <Bell size={20} />,            path: "/notifications" },
             { name: "Feedback",      icon: <MessageSquare size={20} />,   path: "/admin/feedback" },
             { name: "Performance",   icon: <BarChart3 size={20} />,       path: "/admin/performance" },
         ],

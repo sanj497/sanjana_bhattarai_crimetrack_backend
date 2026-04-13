@@ -33,6 +33,15 @@ export default function TransparencyHub() {
     </div>
   );
 
+  if (!stats) return (
+    <div className="flex flex-col items-center justify-center min-h-[400px] text-center p-8">
+      <AlertCircle className="text-red-500 mb-4" size={48} />
+      <h3 className="text-xl font-bold text-slate-900">Data Unavailable</h3>
+      <p className="text-slate-500 max-w-xs mt-2">The transparency system is currently syncing. Please try again in a few moments.</p>
+      <button onClick={fetchStats} className="mt-6 px-6 py-2 bg-blue-600 text-white rounded-xl font-bold text-xs uppercase tracking-widest">Retry Sync</button>
+    </div>
+  );
+
   return (
     <div className="p-8 max-w-7xl mx-auto font-sans">
       

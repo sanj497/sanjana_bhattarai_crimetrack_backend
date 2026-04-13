@@ -77,6 +77,55 @@ export default function CitizenDashboard() {
          </div>
       </div>
 
+      {/* Emergency SOS Signal Section */}
+      <div className="mb-8 bg-white rounded-[32px] border border-red-100 p-8 shadow-2xl shadow-red-500/5 relative overflow-hidden group">
+        <div className="absolute top-0 right-0 h-32 w-32 bg-red-500 opacity-[0.02] rounded-full translate-x-10 -translate-y-10 group-hover:scale-110 transition-transform duration-700" />
+        <div className="flex flex-col md:flex-row items-center justify-between gap-8 relative z-10">
+           <div className="flex items-center gap-6">
+              <div className="h-16 w-16 bg-red-600 rounded-[24px] flex items-center justify-center shadow-lg shadow-red-600/30">
+                 <Activity className="h-8 w-8 text-white animate-pulse" />
+              </div>
+              <div>
+                 <h3 className="text-2xl font-black text-[#0B1F3B] uppercase tracking-tighter">Personal Safety Unit</h3>
+                 <p className="text-gray-500 text-sm font-medium">Instantly broadcast your live location to the central police command and pre-configured guardians.</p>
+              </div>
+           </div>
+           
+           <div className="flex items-center gap-4">
+              <button 
+                onClick={async () => {
+                  if (navigator.geolocation) {
+                    navigator.geolocation.getCurrentPosition(async (pos) => {
+                      const { latitude, longitude, accuracy } = pos.coords;
+                      const token = localStorage.getItem("token");
+                      try {
+                        const res = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/emergency/sos`, {
+                          method: "POST",
+                          headers: { 
+                            "Content-Type": "application/json",
+                            Authorization: `Bearer ${token}` 
+                          },
+                          body: JSON.stringify({ latitude, longitude, accuracy })
+                        });
+                        const data = await res.json();
+                        if (data.success) alert("🚨 SOS DISPATCHED: Authorities have been notified of your location.");
+                      } catch (err) {
+                        alert("Failed to send SOS. Please call emergency services.");
+                      }
+                    });
+                  } else {
+                    alert("Geolocation is not supported by this browser.");
+                  }
+                }}
+                className="bg-red-600 hover:bg-black text-white font-black uppercase text-xs tracking-widest px-10 py-5 rounded-2xl transition-all shadow-xl shadow-red-600/20 active:scale-95 flex items-center gap-3"
+              >
+                <div className="h-2 w-2 rounded-full bg-white animate-ping" />
+                Trigger Emergency SOS
+              </button>
+           </div>
+        </div>
+      </div>
+
       {/* Main Content Pane */}
       <div className="bg-white rounded-[24px] shadow-[0_4px_20px_rgb(0,0,0,0.03)] border border-gray-100 p-12 text-center min-h-[350px] flex flex-col justify-center items-center">
         <div className="p-6 bg-[#F7F9FC] text-[#1E5EFF] rounded-full mb-6 relative">

@@ -12,11 +12,12 @@ export default function PoliceLayout() {
   const location = useLocation();
 
   const menuItems = [
-    { name: 'Dashboard', icon: LayoutDashboard, path: '/bar' },
-    { name: 'Reports', icon: FileText, path: '/complain' },
-    { name: 'Forwarded', icon: Send, path: '/forward' },
-    { name: 'SOS Alerts', icon: Siren, path: '/sos', badge: '3' },
-    { name: 'Emergency', icon: PhoneCall, path: '/emergency' },
+    { name: 'Dashboard', icon: LayoutDashboard, path: '/police/dashboard' },
+    { name: 'Reports', icon: FileText, path: '/police/reports' },
+    { name: 'Forwarded', icon: Send, path: '/police/forward' },
+    { name: 'SOS Alerts', icon: Siren, path: '/police/sos', badge: '3' },
+    { name: 'Notifications', icon: Bell, path: '/notifications' },
+    { name: 'Emergency', icon: PhoneCall, path: '/police/emergency' },
   ];
 
   const currentPage = menuItems.find(item => item.path === location.pathname)?.name || 'Police Dashboard';

@@ -1,0 +1,114 @@
+import SosAlert from "../Models/sosalert.js";
+import { getIO } from "../socket.js";
+import User from "../Models/usermodel.js";
+import { sendSOSEmail } from "../utils/email.js";
+
+// @desc    Trigger a new SOS alert
+// @route   POST /api/emergency/sos
+export const sendSOS = async (req, res) => {
+  try {
+    const { latitude, longitude, accuracy, timestamp } = req.body;
+    const userId = req.user ? req.user._id : null;
+
+    const alert = await SosAlert.create({
+      userId,
+      latitude: latitude || null,
+      longitude: longitude || null,
+      accuracy: accuracy || null,
+      timestamp: timestamp ? new Date(timestamp) : new Date(),
+      status: "active",
+      trackingHistory: latitude && longitude ? [{ latitude, longitude, accuracy }] : [],
+      message: "🆘 EMERGENCY SOS TRIGGERED",
+    });
+
+    // Notify Police/Admin via Socket.io
+    const io = getIO();
+    if (io) {
+      const alertData = {
+        id: alert._id,
+        user: req.user ? { name: req.user.name, email: req.user.email } : "Anonymous",
+        location: { latitude, longitude, accuracy },
+        timestamp: alert.timestamp,
+        status: "active"
+      };
+      io.to("police_room").emit("new_sos_alert", alertData);
+      io.to("admin_room").emit("new_sos_alert", alertData);
+    }
+
+    // Notify Personal Guardians
+    if (req.user && req.user.guardians && req.user.guardians.length > 0) {
+      req.user.guardians.forEach(guardian => {
+        sendSOSEmail(guardian, req.user, { latitude, longitude, accuracy });
+      });
+    }
+
+    res.status(201).json({
+      success: true,
+      message: "🆘 SOS alert triggered! Guardians and authorities have been notified.",
+      alertId: alert._id,
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// @desc    Update live location during an active SOS
+// @route   POST /api/emergency/sos/:id/track
+export const trackSosLocation = async (req, res) => {
+  try {
+    const { latitude, longitude, accuracy } = req.body;
+    const alert = await SosAlert.findById(req.params.id);
+
+    if (!alert) return res.status(404).json({ success: false, message: "Alert not found" });
+    if (alert.status !== "active") return res.status(400).json({ success: false, message: "SOS session is no longer active" });
+
+    alert.trackingHistory.push({ latitude, longitude, accuracy });
+    alert.latitude = latitude;
+    alert.longitude = longitude;
+    alert.accuracy = accuracy;
+    await alert.save();
+
+    // Broadcast update to responders
+    const io = getIO();
+    if (io) {
+      io.to("police_room").emit("sos_location_update", {
+        id: alert._id,
+        location: { latitude, longitude, accuracy }
+      });
+    }
+
+    res.status(200).json({ success: true });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// @desc    Update SOS status (Resolved/Acknowledged)
+// @route   PATCH /api/emergency/sos/:id
+export const updateSOSStatus = async (req, res) => {
+  try {
+    const { status } = req.body;
+    const alert = await SosAlert.findByIdAndUpdate(
+      req.params.id,
+      { status },
+      { new: true, runValidators: true }
+    );
+
+    if (!alert) return res.status(404).json({ success: false, message: "Alert not found" });
+
+    res.status(200).json({ success: true, data: alert });
+  } catch (err) {
+    res.status(400).json({ success: false, message: err.message });
+  }
+};
+
+// @desc    Get all SOS alerts
+// @route   GET /api/emergency/sos
+export const getAllSOS = async (req, res) => {
+  try {
+    const sosList = await SosAlert.find().sort({ createdAt: -1 }).populate("userId", "name email");
+    res.status(200).json({ success: true, data: sosList });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};

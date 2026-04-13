@@ -28,6 +28,10 @@ app.use((req, res, next) => {
   next();
 });
 
+app.get("/api/ping", (req, res) => {
+  res.json({ status: "alive", timestamp: new Date().toISOString() });
+});
+
 // ── CORS (Universal Allowance) ───────────────────────────────────
 app.use(cors({
   origin: "*",

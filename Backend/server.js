@@ -23,6 +23,7 @@ connectDB();
 const app = express();
 
 // ── MANUAL CORS & LOGGING (Highest Priority) ─────────────────────
+// Primary Frontend: https://sanjana-bhattarai-crimetrack-frontend-mj2nt0eqc.vercel.app
 app.use((req, res, next) => {
   res.setHeader("Access-Control-Allow-Origin", req.headers.origin || "*");
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, PATCH, OPTIONS");

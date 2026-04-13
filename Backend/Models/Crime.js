@@ -12,6 +12,10 @@ const crimeSchema = new mongoose.Schema(
       address: { type: String, required: true },
       lat: { type: Number },
       lng: { type: Number },
+      coordinates: {
+        type: [Number], // [longitude, latitude]
+        index: "2dsphere",
+      },
     },
     evidence: [
       {

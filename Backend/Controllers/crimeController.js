@@ -83,7 +83,12 @@ export const createCrimeReport = async (req, res) => {
       title,
       description,
       crimeType,
-      location: { address: String(address).trim(), lat: parsedLat, lng: parsedLng },
+      location: { 
+        address: String(address).trim(), 
+        lat: parsedLat, 
+        lng: parsedLng,
+        coordinates: [parsedLng, parsedLat] 
+      },
       evidence,
       // Set priority based on crime type
       priority: getPriorityFromCrimeType(crimeType),

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import React from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 
 const crimeTypes = [
   "Theft", "Assault", "Burglary", "Fraud", "Vandalism",
@@ -7,6 +8,10 @@ const crimeTypes = [
 ];
 
 const ReportCrime = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const isLoggedIn = !!localStorage.getItem("token");
+
   const [form, setForm] = useState({
     title: "", description: "", crimeType: "",
     address: "", lat: "", lng: "", isAnonymous: false,
@@ -42,7 +47,12 @@ const ReportCrime = () => {
     setMsg(""); setError(""); setLoading(true);
     try {
       const token = localStorage.getItem("token");
-      if (!token) throw new Error("No token found. Please login first.");
+      if (!token) {
+        // Capture form data in session storage maybe? Or just redirect.
+        // For now, redirect to login with a clear state
+        navigate("/login", { state: { from: location, message: "Authentication required to file a secure report." } });
+        return;
+      }
       const fd = new FormData();
       Object.entries(form).forEach(([k, v]) => fd.append(k, String(v)));
       files.forEach((f) => fd.append("evidence", f));
@@ -537,8 +547,10 @@ const ReportCrime = () => {
                 >
                   {loading ? (
                     <><div className="rc-spinner" /> Submitting…</>
+                  ) : !isLoggedIn ? (
+                    <>Verify & Submit (Login Required) 🔐</>
                   ) : (
-                    <>Submit Report 🚨</>
+                    <>Submit Secure Report 🚨</>
                   )}
                 </button>
               </div>

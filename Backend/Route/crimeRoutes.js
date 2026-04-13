@@ -1,5 +1,5 @@
 import express from "express";
-import { authMiddleware, adminMiddleware } from "../middleware/authMiddleware.js";
+import { authMiddleware, adminMiddleware, optionalAuth } from "../middleware/authMiddleware.js";
 import { upload } from "../middleware/multer.js";
 import {
   createCrimeReport,
@@ -39,12 +39,12 @@ router.post("/:id/verify",    authMiddleware, adminMiddleware,      verifyCrimeR
 router.post("/:id/forward",   authMiddleware, adminMiddleware,      forwardToPolice);
 
 // Transparency & Performance
-router.get("/performance",    authMiddleware,                      getTransparencyStats);
+router.get("/performance",    optionalAuth,                      getTransparencyStats);
 
 // Community Dashboard
-router.get("/community",      authMiddleware,                      getPublicFeed);
-router.get("/nearby",         authMiddleware,                      getNearbyReports);
+router.get("/community",      optionalAuth,                      getPublicFeed);
+router.get("/nearby",         optionalAuth,                      getNearbyReports);
 router.post("/:id/responses", authMiddleware,                      addReportInteraction);
-router.get("/:id/responses",  authMiddleware,                      getReportInteractions);
+router.get("/:id/responses",  optionalAuth,                      getReportInteractions);
 
 export default router;

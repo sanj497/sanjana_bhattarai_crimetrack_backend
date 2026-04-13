@@ -16,8 +16,32 @@ export default function CitizenDashboard() {
     }
   }, []);
 
+  const isLoggedIn = !!localStorage.getItem("token");
+
   return (
-    <div className="p-6 md:p-10 font-sans min-h-full bg-[#F7F9FC]">
+    <div className="p-6 md:p-10 font-sans min-h-full bg-[#F7F9FC] relative">
+      {!isLoggedIn && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-[#F7F9FC]/60 backdrop-blur-[2px]">
+          <div className="bg-white p-10 rounded-[32px] shadow-[0_20px_50px_rgba(0,0,0,0.1)] border border-gray-100 max-w-md text-center">
+            <div className="h-20 w-20 bg-[#1E5EFF]/10 text-[#1E5EFF] rounded-full flex items-center justify-center mx-auto mb-6">
+              <Shield className="h-10 w-10" />
+            </div>
+            <h2 className="text-3xl font-bold text-[#0B1F3B] mb-4" style={{ fontFamily: "Poppins, sans-serif" }}>Secure Reporting Hub</h2>
+            <p className="text-[#6B7280] mb-8 leading-relaxed">
+              Create a secure identity to file verified reports, track incident progress, and receive emergency alerts from local law enforcement.
+            </p>
+            <div className="flex flex-col gap-3">
+              <Link to="/register" className="bg-[#1E5EFF] text-white py-4 rounded-[16px] font-bold hover:bg-blue-600 transition shadow-[0_4px_14px_rgba(30,94,255,0.4)]">
+                Initialize Identity
+              </Link>
+              <Link to="/login" className="text-[#0B1F3B] font-bold py-4 hover:text-[#1E5EFF] transition">
+                Access Existing Account
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Welcome Banner */}
       <div className="mb-8 p-8 md:p-12 rounded-[24px] bg-[#0B1F3B] text-white relative overflow-hidden shadow-[0_12px_40px_rgb(0,0,0,0.12)] border border-[#112445]">
         <div className="absolute inset-0 z-0 opacity-20">
@@ -26,16 +50,19 @@ export default function CitizenDashboard() {
         <div className="relative z-10 flex justify-between items-center">
           <div>
             <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-[8px] bg-white/10 text-[#00B8D9] font-medium text-xs mb-4 border border-white/5 backdrop-blur-sm">
-              <Activity className="h-4 w-4" /> Identity Verified
+              <Activity className="h-4 w-4" /> {isLoggedIn ? 'Identity Verified' : 'Guest Session'}
             </div>
             <h1 className="text-3xl md:text-4xl font-bold mb-2 leading-tight" style={{ fontFamily: "Poppins, sans-serif" }}>
-              Welcome back, <span className="text-[#00B8D9]">{user.username || 'Citizen'}</span>
+              {isLoggedIn ? <>Welcome back, <span className="text-[#00B8D9]">{user.username || 'Citizen'}</span></> : 'Explore the Portal'}
             </h1>
             <p className="text-gray-400 max-w-lg leading-relaxed">
-              You are securely connected to the central intelligence hub. Manage your active alerts, review intelligence, and collaborate with your local dispatch unit.
+              {isLoggedIn 
+                ? "You are securely connected to the central intelligence hub. Manage your active alerts and review intelligence."
+                : "Browse the community feed and explore verified transparency reports. Register to begin filing secure reports."
+              }
             </p>
             <div className="mt-6">
-                <Link to="/Report" className="inline-flex items-center justify-center gap-2 bg-[#E63946] text-white px-6 py-3 rounded-[10px] font-bold hover:bg-red-700 transition shadow-[0_4px_14px_0_rgba(230,57,70,0.39)]">
+                <Link to="/report" className="inline-flex items-center justify-center gap-2 bg-[#E63946] text-white px-6 py-3 rounded-[10px] font-bold hover:bg-red-700 transition shadow-[0_4px_14px_0_rgba(230,57,70,0.39)]">
                    File New Report <ChevronRight className="h-4 w-4" />
                 </Link>
             </div>

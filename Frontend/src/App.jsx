@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import React from "react";
 import Login from "../Pages/Login";
 import Register from "../Pages/Register";
@@ -8,7 +8,8 @@ import ReportCrime from "../Pages/CrimeReport/report.jsx";
 import Dashboard from "./Components/Dashboard/dashboard.jsx";
 import AdminReport from "./Components/Dashboard/adminreport.jsx";
 import AdminRoute from "./Components/AdminRoute.jsx";
-import PoliceDashboard from "./Components/Policedashboard/Policereport.jsx";
+import PoliceRoute from "./Components/PoliceRoute.jsx";
+import CitizenRoute from "./Components/CitizenRoute.jsx";
 import NewBoard from "../Pages/police/Dashui.jsx";
 import Policereport from "./Components/Policedashboard/Policereport.jsx";
 import Notifications from "../Pages/notification/notification.jsx";
@@ -34,19 +35,38 @@ import SOSList from "./Components/Policedashboard/SOSlist.jsx";
 import CommunityBoard from "../Pages/Citizendashboard/CommunityBoard.jsx";
 import TransparencyHub from "../Pages/Citizendashboard/TransparencyHub.jsx";
 
+// Helper: redirect already-logged-in users away from auth pages
+function GuestOnlyRoute({ children }) {
+  const token = localStorage.getItem("token");
+  const userStr = localStorage.getItem("user");
+  if (token && userStr) {
+    try {
+      const user = JSON.parse(userStr);
+      if (user.role === "admin") return <Navigate to="/dashboard" replace />;
+      if (user.role === "police") return <Navigate to="/bar" replace />;
+      if (user.role === "user") return <Navigate to="/citizen" replace />;
+    } catch {
+      // bad data — let them through to login/register
+    }
+  }
+  return children;
+}
+
 function App() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* Public routes */}
+        {/* ── PUBLIC ROUTES ─────────────────────────────────────────── */}
         <Route path="/" element={<CrimeReportingHome />} />
-        <Route path="/login" element={<Login />} />
-        <Route path="/register" element={<Register />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/logout" element={<Logout />} />
 
-        {/* Admin routes */}
+        {/* Auth pages — redirect if already logged in */}
+        <Route path="/login" element={<GuestOnlyRoute><Login /></GuestOnlyRoute>} />
+        <Route path="/register" element={<GuestOnlyRoute><Register /></GuestOnlyRoute>} />
+
+        {/* ── ADMIN ROUTES (role: admin) ─────────────────────────────── */}
         <Route element={<AdminRoute><AdminLayout /></AdminRoute>}>
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/adReport" element={<AdminReport />} />
@@ -59,8 +79,8 @@ function App() {
           <Route path="/Map" element={<CrimeMap />} />
         </Route>
 
-        {/* Police routes */}
-        <Route element={<PoliceLayout />}>
+        {/* ── POLICE ROUTES (role: police) ──────────────────────────── */}
+        <Route element={<PoliceRoute><PoliceLayout /></PoliceRoute>}>
           <Route path="/bar" element={<NewBoard />} />
           <Route path="/complain" element={<Policereport />} />
           <Route path="/forward" element={<ForwardToPolice />} />
@@ -68,8 +88,8 @@ function App() {
           <Route path="/emergency-police" element={<EmergencyContactsApp />} />
         </Route>
 
-        {/* Citizen routes */}
-        <Route element={<CitizenLayout />}>
+        {/* ── CITIZEN ROUTES (role: user) ────────────────────────────── */}
+        <Route element={<CitizenRoute><CitizenLayout /></CitizenRoute>}>
           <Route path="/citizen" element={<CitizenDashboard />} />
           <Route path="/community" element={<CommunityBoard />} />
           <Route path="/transparency" element={<TransparencyHub />} />
@@ -82,6 +102,8 @@ function App() {
           <Route path="/citizen/settings" element={<CitizenSettings />} />
         </Route>
 
+        {/* ── CATCH-ALL ─────────────────────────────────────────────── */}
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
   );

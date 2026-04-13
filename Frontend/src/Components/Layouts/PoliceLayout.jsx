@@ -2,6 +2,10 @@ import React, { useState } from 'react';
 import { Shield, AlertTriangle, FileText, MapPin, Bell, Search, Menu, X, Siren, LogOut, LayoutDashboard, Send, PhoneCall } from 'lucide-react';
 import { useNavigate, Outlet, Link, useLocation } from 'react-router-dom';
 
+const getUser = () => {
+  try { return JSON.parse(localStorage.getItem("user")) || {}; } catch { return {}; }
+};
+
 export default function PoliceLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const navigate = useNavigate();
@@ -87,13 +91,19 @@ export default function PoliceLayout() {
                 <Bell size={20} />
                 <span className="absolute -top-1 -right-1 bg-red-500 w-2 h-2 rounded-full"></span>
               </button>
-              <div className="flex items-center gap-3">
-                <div className="text-right hidden sm:block">
-                  <div className="text-sm font-semibold">Sgt. Wilson</div>
-                  <div className="text-[10px] text-slate-500">Badge #4492</div>
-                </div>
-                <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center font-bold text-xs ring-2 ring-slate-700">W</div>
-              </div>
+              {(() => {
+                const u = getUser();
+                const initials = u.username ? u.username.split(" ").map(w => w[0]).join("").toUpperCase().slice(0,2) : "P";
+                return (
+                  <div className="flex items-center gap-3">
+                    <div className="text-right hidden sm:block">
+                      <div className="text-sm font-semibold">{u.username || "Officer"}</div>
+                      <div className="text-[10px] text-slate-500">{u.email || "police@crimetrack.gov"}</div>
+                    </div>
+                    <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center font-bold text-xs ring-2 ring-slate-700">{initials}</div>
+                  </div>
+                );
+              })()}
             </div>
           </div>
         </header>

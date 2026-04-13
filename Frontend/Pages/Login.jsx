@@ -1,9 +1,11 @@
 import React, { useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate, Link, useLocation } from "react-router-dom";
 import { Mail, Lock, ArrowRight, Shield, Activity, ChevronLeft } from "lucide-react";
 
 const Login = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const from = location.state?.from?.pathname || null;
 
   const [form, setForm] = useState({ email: "", password: "" });
   const [message, setMessage] = useState("");
@@ -46,18 +48,21 @@ const Login = () => {
       }
 
       localStorage.setItem("token", token);
-
-      // STORE USER
       if (data.user) {
         localStorage.setItem("user", JSON.stringify(data.user));
       }
 
+      // 🔥 Tell the whole app that auth state has changed
+      window.dispatchEvent(new Event("authChange"));
+
       setMessage("Login successful!");
       setError(false);
 
-      // ROLE-BASED REDIRECT
+      // ROLE-BASED REDIRECT (or back to intended page)
       const role = data.user?.role;
-      if (role === "admin") {
+      if (from) {
+        navigate(from, { replace: true });
+      } else if (role === "admin") {
         navigate("/dashboard");
       } else if (role === "police") {
         navigate("/bar");

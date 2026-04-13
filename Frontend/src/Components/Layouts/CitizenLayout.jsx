@@ -2,6 +2,10 @@ import React, { useState } from "react";
 import { Link, useLocation, Outlet } from "react-router-dom";
 import { LayoutDashboard, FileText, Bell, MessageSquare, Settings, AlertTriangle, ShieldAlert, LogOut, ChevronLeft, ChevronRight, Shield, Users, BarChart3 } from "lucide-react";
 
+const getUser = () => {
+  try { return JSON.parse(localStorage.getItem("user")) || {}; } catch { return {}; }
+};
+
 const navItems = [
   { icon: <LayoutDashboard size={20} />, label: "Overview", path: "/citizen" },
   { icon: <Users size={20} />, label: "Community", path: "/community" },
@@ -105,9 +109,21 @@ export default function CitizenLayout() {
              <div className="hidden sm:block text-sm text-[#1E5EFF] bg-[#1E5EFF]/10 px-4 py-2 rounded-full font-semibold border border-[#1E5EFF]/20">
                {new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
              </div>
-             <div className="h-10 w-10 bg-[#0B1F3B] text-white flex items-center justify-center rounded-full font-bold shadow-md">
-                U
-             </div>
+             {(() => {
+               const u = getUser();
+               const initials = u.username ? u.username.split(" ").map(w => w[0]).join("").toUpperCase().slice(0,2) : "U";
+               return (
+                 <div className="flex items-center gap-2">
+                   <div className="hidden sm:block text-right">
+                     <div className="text-xs font-bold text-[#0B1F3B]">{u.username || "Citizen"}</div>
+                     <div className="text-[10px] text-gray-400">{u.email || ""}</div>
+                   </div>
+                   <div className="h-10 w-10 bg-[#0B1F3B] text-white flex items-center justify-center rounded-full font-bold shadow-md">
+                     {initials}
+                   </div>
+                 </div>
+               );
+             })()}
           </div>
         </header>
 

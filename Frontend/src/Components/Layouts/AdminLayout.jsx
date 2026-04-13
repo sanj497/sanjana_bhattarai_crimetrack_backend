@@ -1,5 +1,9 @@
 import React, { useState, useMemo } from "react";
 import { Link, useNavigate, Outlet, useLocation } from "react-router-dom";
+
+const getUser = () => {
+  try { return JSON.parse(localStorage.getItem("user")) || {}; } catch { return {}; }
+};
 import { 
   LayoutDashboard, 
   Map as MapIcon, 
@@ -109,13 +113,21 @@ export default function AdminLayout() {
                     </div>
 
                     <div className="flex items-center gap-6">
-                        <div className="hidden md:flex flex-col items-end mr-2">
-                             <div className="text-xs font-bold text-[#0B1F3B]">Main Administrator</div>
-                             <div className="text-[10px] text-gray-400">admin@crimetrack.gov</div>
-                        </div>
-                        <div className="h-10 w-10 bg-[#0B1F3B] text-white flex items-center justify-center rounded-xl font-black shadow-lg transform rotate-3 hover:rotate-0 transition-transform cursor-default">
-                            A
-                        </div>
+                        {(() => {
+                          const u = getUser();
+                          const initials = u.username ? u.username.split(" ").map(w => w[0]).join("").toUpperCase().slice(0,2) : "A";
+                          return (
+                            <>
+                              <div className="hidden md:flex flex-col items-end mr-2">
+                                <div className="text-xs font-bold text-[#0B1F3B]">{u.username || "Administrator"}</div>
+                                <div className="text-[10px] text-gray-400">{u.email || "admin@crimetrack.gov"}</div>
+                              </div>
+                              <div className="h-10 w-10 bg-[#0B1F3B] text-white flex items-center justify-center rounded-xl font-black shadow-lg transform rotate-3 hover:rotate-0 transition-transform cursor-default">
+                                {initials}
+                              </div>
+                            </>
+                          );
+                        })()}
                     </div>
                 </header>
 

@@ -2,9 +2,9 @@ import React from "react";
 import { Navigate, useLocation } from "react-router-dom";
 
 /**
- * AdminRoute — requires authenticated user with role === "admin".
+ * CitizenRoute — requires authenticated user with role === "user".
  */
-export default function AdminRoute({ children }) {
+export default function CitizenRoute({ children }) {
   const location = useLocation();
   const token = localStorage.getItem("token");
   const userStr = localStorage.getItem("user");
@@ -15,10 +15,10 @@ export default function AdminRoute({ children }) {
 
   try {
     const user = JSON.parse(userStr);
-    if (user.role !== "admin") {
+    if (user.role !== "user") {
       // Authenticated but wrong role — redirect to their own dashboard
+      if (user.role === "admin") return <Navigate to="/dashboard" replace />;
       if (user.role === "police") return <Navigate to="/bar" replace />;
-      if (user.role === "user") return <Navigate to="/citizen" replace />;
       return <Navigate to="/" replace />;
     }
   } catch {

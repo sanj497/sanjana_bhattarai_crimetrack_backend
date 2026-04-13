@@ -1,4 +1,8 @@
 import Complaint from "../Models/Complaint.js";
+import User from "../Models/usermodel.js";
+import Notification from "../Models/Notification.js";
+import { transporter } from "../utils/email.js";
+import { getIO } from "../socket.js";
 
 // ─── USER: Submit a new complaint ───────────────────────────────────────────
 export const submitComplaint = async (req, res) => {
@@ -26,6 +30,60 @@ export const submitComplaint = async (req, res) => {
       message: "Complaint submitted successfully.",
       complaint,
     });
+
+    // ── PROFESSIONAL BROADCAST: Notify Admins ────────────────────────
+    try {
+      const adminUsers = await User.find({ role: "admin" }, "_id email username");
+      const adminIds = adminUsers.map(a => a._id);
+      
+      const message = `📨 New Complaint Filed: "${title}" by ${req.user.username}`;
+      const io = getIO();
+
+      // 1. In-App Bulk Notification
+      if (adminIds.length > 0) {
+        const docs = adminIds.map(adminId => ({
+          userId: adminId,
+          message,
+          type: "complaint"
+        }));
+        await Notification.insertMany(docs, { ordered: false });
+      }
+
+      // 2. Socket.io Real-time
+      if (io) {
+        io.to("admin_room").emit("new_notification", {
+          type: "complaint",
+          title: title,
+          message,
+          timestamp: new Date().toISOString()
+        });
+      }
+
+      // 3. Email Alert to Admins
+      adminUsers.forEach(admin => {
+        transporter.sendMail({
+          from: `"CrimeTrack Complaints" <${process.env.EMAIL_USER}>`,
+          to: admin.email,
+          subject: "📬 New User Complaint Submitted",
+          html: `
+            <div style="font-family: sans-serif; padding: 24px; max-width: 600px; margin: auto; border: 1px solid #e5e7eb; border-radius: 12px; background-color: #ffffff;">
+              <h2 style="color: #4f46e5; margin-bottom: 16px;">New Complaint Received</h2>
+              <p style="color: #374151;">A new user complaint has been submitted and requires review.</p>
+              <div style="background-color: #f9fafb; padding: 16px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #4f46e5;">
+                <p><strong>Title:</strong> ${title}</p>
+                <p><strong>Category:</strong> ${category}</p>
+                <p><strong>Submitted by:</strong> ${req.user.username} (${req.user.email})</p>
+                <p><strong>Description:</strong> ${description}</p>
+              </div>
+              <p style="font-size: 13px; color: #6b7280;">Please log in to the admin dashboard to take action.</p>
+            </div>
+          `
+        }).catch(err => console.error("Admin complaint email failed:", err.message));
+      });
+
+    } catch (err) {
+      console.error("Complaint notification failed:", err.message);
+    }
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }

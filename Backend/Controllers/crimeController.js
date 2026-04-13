@@ -1,5 +1,6 @@
 // Crime Report Controller - Professional Workflow
 import Crime from "../Models/Crime.js";
+import Crimereport from "../Models/Crimereport.js";
 import User from "../Models/usermodel.js";
 import Notification from "../Models/Notification.js";
 import CrimeInteraction from "../Models/CrimeInteraction.js";
@@ -101,69 +102,83 @@ export const createCrimeReport = async (req, res) => {
     });
 
     // ═══════════════════════════════════════════════════════════
-    // PROFESSIONAL WORKFLOW: IMMEDIATE ADMIN NOTIFICATION
+    // PROFESSIONAL WORKFLOW: IMMEDIATE BROADCAST NOTIFICATION
     // ═══════════════════════════════════════════════════════════
 
-    // 1. IMMEDIATELY notify ALL ADMINS (priority - real-time)
-    const adminUsers = await User.find({ role: "admin" }, "_id email");
-    const adminIds = adminUsers.map((u) => u._id);
-    const adminMessage = `🔴 URGENT: New crime report requires verification - "${crime.title}" (${crime.crimeType})`;
+    // 1. Fetch all stakeholders (Admins, Police, and Citizens)
+    // In production, we fetch them in one query or use a worker queue
+    const allStakeholders = await User.find(
+      { isOtpVerified: true }, // Only verified users
+      "_id email role"
+    );
 
-    await bulkNotify(adminIds, crime._id, adminMessage);
+    const adminIds = [];
+    const policeIds = [];
+    const citizenIds = [];
+    const recipients = [];
 
-    // Real-time socket notification to admin dashboard
+    allStakeholders.forEach(u => {
+      if (u.role === "admin") adminIds.push(u._id);
+      else if (u.role === "police") policeIds.push(u._id);
+      else citizenIds.push(u._id);
+
+      // Add to email list (don't send to the reporter)
+      if (u._id.toString() !== req.user._id.toString()) {
+        recipients.push(u);
+      }
+    });
+
+    const adminMessage = `🔴 URGENT: New crime report requires verification - "${crime.title}"`;
+    const generalMessage = `🚨 Crime Alert nearby: "${crime.title}" (${crime.crimeType})`;
+
+    // 2. In-App Notifications (Bulk)
+    if (adminIds.length) await bulkNotify(adminIds, crime._id, adminMessage);
+    if (policeIds.length) await bulkNotify(policeIds, crime._id, `📋 New verified report pending: ${crime.title}`);
+    if (citizenIds.length) await bulkNotify(citizenIds, crime._id, generalMessage);
+
+    // 3. Socket.io Real-time Broadcast
     const io = getIO();
     if (io) {
+      // Notify Admin Room
       io.to("admin_room").emit("new_notification", {
         type: "crime_report",
         crimeId: crime._id,
         title: crime.title,
-        crimeType: crime.crimeType,
-        location: crime.location.address,
-        status: crime.status,
-        priority: "high",
         message: adminMessage,
-        timestamp: new Date().toISOString(),
-        actionRequired: true
+        priority: "high",
+        actionRequired: true,
+        timestamp: new Date().toISOString()
       });
-    }
 
-    // 2. Notify police (informational - they see it in their dashboard)
-    const policeUsers = await User.find({ role: "police" }, "_id email");
-    const policeIds = policeUsers.map((u) => u._id);
-    const policeMessage = `📋 New crime reported in your area - "${crime.title}" (Pending verification)`;
-
-    await bulkNotify(policeIds, crime._id, policeMessage);
-
-    if (io) {
+      // Notify Police Room
       io.to("police_room").emit("new_notification", {
         type: "crime_info",
         crimeId: crime._id,
         title: crime.title,
-        crimeType: crime.crimeType,
-        status: "Pending",
-        message: policeMessage,
-        timestamp: new Date().toISOString(),
-        actionRequired: false
+        message: "New report submitted",
+        timestamp: new Date().toISOString()
+      });
+
+      // Notify General Room (Optional awareness)
+      io.emit("new_public_alert", {
+        title: crime.title,
+        type: crime.crimeType,
+        location: crime.location.address
       });
     }
 
-    // 3. Notify other users (general awareness)
-    const otherUsers = await User.find({
-      role: "user",
-      _id: { $ne: crime.userId }
-    }, "_id email");
-    const userIds = otherUsers.map((u) => u._id);
-    const userMessage = `🚨 Crime reported nearby: "${crime.title}" (${crime.crimeType})`;
+    // 4. Production-Level Email Broadcast (Non-blocking)
+    // We send emails to all verified users and admins as requested
+    recipients.forEach((recipient) => {
+      const msg = recipient.role === "admin" ? adminMessage : generalMessage;
+      sendCrimeAlertEmail(recipient, crime, msg).catch((err) =>
+        console.error(`Email failed for ${recipient.email}:`, err.message)
+      );
+    });
 
-    await bulkNotify(userIds, crime._id, userMessage);
-
-    // 4. Send email alerts (fire-and-forget - don't block response)
-    const allUsers = [...adminUsers, ...policeUsers, ...otherUsers];
-    allUsers.forEach((user) =>
-      sendCrimeAlertEmail(user, crime).catch((err) =>
-        console.error(`Email failed for ${user.email}:`, err.message)
-      )
+    // 5. Send Confirmation to Reporter
+    sendCrimeAlertEmail(req.user, crime, "✅ Thank you for your report. Our team has been notified and will verify the details shortly.").catch((err) =>
+      console.error(`Reporter confirmation failed for ${req.user.email}:`, err.message)
     );
 
     return res.status(201).json({
@@ -235,24 +250,25 @@ export const updateCrimeStatus = async (req, res) => {
 // ─────────────────────────────────────────────────────────────────
 export const verifyCrimeReport = async (req, res) => {
   try {
-    const { adminNotes, verificationNotes } = req.body;
+    const { adminNotes, verificationNotes, action } = req.body;
+    const isApproved = action !== "reject";
 
     const crime = await Crime.findByIdAndUpdate(
       req.params.id,
       {
-        status: "Verified",
+        status: isApproved ? "Verified" : "Rejected",
         adminNotes: adminNotes || "",
         // Update workflow fields
-        "workflow.adminVerified": true,
+        "workflow.adminVerified": isApproved,
         "workflow.verifiedBy": req.user._id,
         "workflow.verifiedAt": new Date(),
         "workflow.verificationNotes": verificationNotes || adminNotes || "",
         // Set modifiedBy for status history tracking
         modifiedBy: req.user._id,
-        statusNotes: verificationNotes || `Verified by admin`,
+        statusNotes: verificationNotes || `${isApproved ? 'Verified' : 'Rejected'} by admin`,
       },
       { new: true }
-    ).populate("userId", "email name");
+    ).populate("userId", "email username name");
 
     if (!crime) return res.status(404).json({ error: "Crime not found" });
 
@@ -334,21 +350,40 @@ export const forwardToPolice = async (req, res) => {
 
     // 2. Real-time notification to POLICE (urgent - new case assigned)
     const io = getIO();
+    const assignedOfficerId = req.body.assignedOfficerId;
+
+    if (assignedOfficerId) {
+      // Specifically update the assigned officer in the workflow
+      await Crime.findByIdAndUpdate(crime._id, {
+        "workflow.assignedToOfficer": assignedOfficerId,
+        "workflow.assignedAt": new Date()
+      });
+
+      // Notify THE specific officer
+      if (io) {
+        io.to(`user_${assignedOfficerId}`).emit("new_notification", {
+          type: "crime_assigned",
+          crimeId: crime._id,
+          title: crime.title,
+          message: `🚨 NEW CASE ASSIGNED: "${crime.title}" - Please begin investigation immediately.`,
+          priority: "high",
+          actionRequired: true,
+          timestamp: new Date().toISOString()
+        });
+      }
+    }
+
     if (io) {
-      // Notify police room about new case
+      // Also notify General Police Room for awareness
       io.to("police_room").emit("new_notification", {
         type: "crime_forwarded",
         crimeId: crime._id,
         title: crime.title,
         crimeType: crime.crimeType,
         location: crime.location.address,
-        description: crime.description,
         status: "ForwardedToPolice",
-        priority: crime.priority?.toLowerCase() || "high",
-        message: `🚨 NEW CASE ASSIGNED: "${crime.title}" - Requires immediate attention`,
-        timestamp: new Date().toISOString(),
-        actionRequired: true,
-        requiresInvestigation: true
+        message: `📋 New case forwarded for ${assignedOfficerId ? "specific assignment" : "general review"}: "${crime.title}"`,
+        timestamp: new Date().toISOString()
       });
 
       // Also notify admins that forwarding is complete
@@ -358,8 +393,7 @@ export const forwardToPolice = async (req, res) => {
         title: crime.title,
         status: "ForwardedToPolice",
         message: `✅ Case "${crime.title}" successfully forwarded to police`,
-        timestamp: new Date().toISOString(),
-        actionRequired: false
+        timestamp: new Date().toISOString()
       });
     }
 
@@ -425,15 +459,28 @@ export const getTransparencyStats = async (req, res) => {
         "workflow.assignedToOfficer": officer._id, 
         status: "Resolved" 
       });
+      const inProgressCount = await Crime.countDocuments({ 
+        "workflow.assignedToOfficer": officer._id, 
+        status: "UnderInvestigation" 
+      });
+
       return {
         id: officer._id,
         name: officer.username,
         email: officer.email,
         assigned: assignedCount,
         resolved: resolvedCount,
+        inProgress: inProgressCount,
         efficiency: assignedCount > 0 ? Math.round((resolvedCount / assignedCount) * 100) : 0
       };
     }));
+
+    // Neighborhood analysis (based on address substrings or coordinates)
+    // Here we'll just group by crimeType for better community insight
+    const crimeTypeTrend = await Crime.aggregate([
+      { $group: { _id: "$crimeType", count: { $sum: 1 } } },
+      { $sort: { count: -1 } }
+    ]);
 
     return res.json({
       success: true,
@@ -441,6 +488,8 @@ export const getTransparencyStats = async (req, res) => {
         totalReports,
         statusBreakdown: statusCounts,
         officerPerformance: officerStats,
+        crimeTrends: crimeTypeTrend,
+        resolutionRate: totalReports > 0 ? Math.round((statusCounts.find(s => s._id === 'Resolved')?.count || 0) / totalReports * 100) : 0,
         lastUpdated: new Date()
       }
     });
@@ -576,5 +625,36 @@ export const getDashboardStats = async (req, res) => {
   } catch (error) {
     console.error("getDashboardStats error:", error);
     res.status(500).json({ error: "Stats fetch failed" });
+  }
+};
+
+// @desc    Get single crime report by ID (Resilient Multi-Source)
+// @route   GET /api/report/detail/:id
+export const getCrimeById = async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Attempt to find in primary Crime collection
+    let crime = await Crime.findById(id)
+      .populate("userId", "username email name")
+      .populate("workflow.assignedToOfficer", "username name email rank badgeNumber phone");
+
+    // Fallback: Check map-based reports if not found in primary
+    if (!crime) {
+      const mapReport = await Crimereport.findById(id).populate("userId", "username email name");
+      if (mapReport) {
+        // Convert to standard format for the Verify UI
+        crime = mapReport.toObject();
+        crime.isMapReport = true; // Flag for UI if needed
+        crime.crimeType = mapReport.category || mapReport.crimeType;
+      }
+    }
+
+    if (!crime) return res.status(404).json({ error: "Intelligence Record not found across any databases" });
+
+    res.json({ success: true, crime });
+  } catch (error) {
+    console.error("getCrimeById error:", error);
+    res.status(500).json({ error: "Internal Clearance Error", details: error.message });
   }
 };

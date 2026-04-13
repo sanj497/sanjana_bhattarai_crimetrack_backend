@@ -1,36 +1,15 @@
 import User from '../Models/usermodel.js';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import nodemailer from 'nodemailer';
+import { transporter } from "../utils/email.js";
 import dotenv from 'dotenv';
 
 dotenv.config();
 
 const JWT_SECRET = process.env.JWT_SECRET;
 
-/* =========================
-   Validate environment variables
-========================= */
-if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
-  console.warn("WARNING: EMAIL_USER or EMAIL_PASS not set in environment variables. Email features will not work.");
-}
-
-/* =========================
-   Email Transporter
-========================= */
-const transporter = nodemailer.createTransport({
-  service: "gmail",
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS, // must be App Password
-  },
-});
-
-// Verify SMTP on startup
-transporter.verify((err, success) => {
-  if (err) console.error("SMTP ERROR:", err);
-  else console.log("SMTP READY ✓");
-});
+// Shared transporter is imported from utils/email.js
+// SMTP verification is handled in the utility if needed, or we can just trust the pool.
 
 /* =========================
    Generate OTP

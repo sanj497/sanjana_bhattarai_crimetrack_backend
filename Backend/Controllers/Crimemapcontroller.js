@@ -1,5 +1,15 @@
 import CrimeReport from "../Models/Crimereport.js";
+import User from "../Models/usermodel.js";
+import Notification from "../Models/Notification.js";
+import { sendCrimeAlertEmail } from "../utils/email.js";
+import { getIO } from "../socket.js";
 import axios from "axios";
+
+// Helper function for bulk notifications
+const bulkNotify = async (userIds, crimeId, message) => {
+  const docs = userIds.map((userId) => ({ userId, crimeId: crimeId, message }));
+  await Notification.insertMany(docs, { ordered: false });
+};
 
 // Helper: Reverse geocode using Google Maps API
 const reverseGeocode = async (lat, lng) => {
@@ -90,6 +100,58 @@ export const submitCrimeReport = async (req, res) => {
       message: "Crime report submitted successfully.",
       data: report,
     });
+
+    // ── BROADCAST NOTIFICATIONS (Professional Workflow) ─────────────
+    try {
+      const allUsers = await User.find({ isOtpVerified: true }, "_id email role");
+      const adminMessage = `🚨 NEW MAP REPORT: ${report.crimeType} at ${report.address}`;
+      const generalMessage = `⚠️ Nearby Incident: ${report.crimeType} reported at ${report.address}`;
+
+      const io = getIO();
+      if (io) io.emit("new_public_alert", { title: report.crimeType, location: report.address });
+
+      const adminIds = [];
+      const policeIds = [];
+      const citizenIds = [];
+
+      allUsers.forEach(user => {
+        if (user.role === "admin") adminIds.push(user._id);
+        else if (user.role === "police") policeIds.push(user._id);
+        else citizenIds.push(user._id);
+
+        if (user._id.toString() === req.user._id.toString()) return;
+
+        const msg = (user.role === 'admin' || user.role === 'police') ? adminMessage : generalMessage;
+        
+        // Send email alerts in production style
+        sendCrimeAlertEmail(user, {
+          title: report.crimeType,
+          crimeType: report.crimeType,
+          description: report.description,
+          location: { address: report.address },
+          priority: report.severity || "Medium",
+          _id: report._id
+        }, msg).catch(e => console.error("Map report email failed:", e.message));
+      });
+
+      // Bulk In-App Notifications
+      if (adminIds.length) await bulkNotify(adminIds, report._id, adminMessage);
+      if (policeIds.length) await bulkNotify(policeIds, report._id, `📋 New Map Incident: ${report.crimeType}`);
+      if (citizenIds.length) await bulkNotify(citizenIds, report._id, generalMessage);
+
+      // Confirmation to Reporter
+      sendCrimeAlertEmail(req.user, {
+        title: report.crimeType,
+        crimeType: report.crimeType,
+        description: report.description,
+        location: { address: report.address },
+        priority: report.severity || "Medium",
+        _id: report._id
+      }, "✅ Your map-based report has been received. Thank you for helping keep the community safe.").catch(e => console.error("Map reporter confirmation failed:", e.message));
+
+    } catch (err) {
+      console.error("Broadcast failed for map report:", err.message);
+    }
   } catch (err) {
     console.error("submitCrimeReport error:", err);
     res.status(500).json({ success: false, message: "Server error." });

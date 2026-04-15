@@ -23,6 +23,9 @@ connectDB();
 
 const app = express();
 
+// Trust Render/Heroku/etc. reverse proxy so rate-limiting and IP detection work correctly
+app.set("trust proxy", 1);
+
 // ── ABSOLUTE CORS CONTROL (Highest Priority) ────────────────────
 app.use((req, res, next) => {
   const origin = req.headers.origin;

@@ -6,8 +6,8 @@ import { getIO } from "../socket.js";
 import axios from "axios";
 
 // Helper function for bulk notifications
-const bulkNotify = async (userIds, crimeId, message) => {
-  const docs = userIds.map((userId) => ({ userId, crimeId: crimeId, message }));
+const bulkNotify = async (userIds, crimeId, message, type = "personal") => {
+  const docs = userIds.map((userId) => ({ userId, crimeId, message, type }));
   await Notification.insertMany(docs, { ordered: false });
 };
 
@@ -134,9 +134,9 @@ export const submitCrimeReport = async (req, res) => {
       const safeAlertMessage = `🛡️ SAFE ALERT: A ${report.crimeType} has been reported within 5km of your location on the community map. Authorities have been alerted. Please stay vigilant.`;
 
       // 3. In-App Notifications (Bulk)
-      if (adminIds.length) await bulkNotify(adminIds, report._id, adminMessage);
-      if (policeIds.length) await bulkNotify(policeIds, report._id, `📋 New Map Incident: ${report.crimeType} at ${report.address}`);
-      if (citizenIds.length) await bulkNotify(citizenIds, report._id, safeAlertMessage);
+      if (adminIds.length) await bulkNotify(adminIds, report._id, adminMessage, "admin_alert");
+      if (policeIds.length) await bulkNotify(policeIds, report._id, `📋 New Map Incident: ${report.crimeType} at ${report.address}`, "police_alert");
+      if (citizenIds.length) await bulkNotify(citizenIds, report._id, safeAlertMessage, "citizen_alert");
 
       // 4. Socket.io targeted delivery
       const io = getIO();
@@ -159,7 +159,8 @@ export const submitCrimeReport = async (req, res) => {
       await Notification.create({
         userId: req.user._id,
         crimeId: report._id,
-        message: "✅ Your report has been pinned to the community map. Nearby citizens have been alerted."
+        message: "✅ Your report has been pinned to the community map. Nearby citizens have been alerted.",
+        type: "personal"
       });
       
       sendCrimeAlertEmail(req.user, {

@@ -10,11 +10,22 @@ const notificationSchema = new mongoose.Schema({
   crimeId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "Crime",
-    required: true,
+    required: false, // optional — complaint notifications don't have a linked crime
   },
   message: {
     type: String,
     required: true,
+  },
+  // Who this notification is intended for:
+  // 'personal'       = sent to the specific reporter/reporter confirmation
+  // 'citizen_alert'  = safe alert for nearby citizens  
+  // 'admin_alert'    = alert for admin staff
+  // 'police_alert'   = alert for police officers
+  // 'complaint'      = complaint filed — admin/police only
+  type: {
+    type: String,
+    enum: ["personal", "citizen_alert", "admin_alert", "police_alert", "complaint"],
+    default: "personal",
   },
   isRead: {
     type: Boolean,

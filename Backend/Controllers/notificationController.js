@@ -5,7 +5,20 @@ import { sendNotificationToUser } from "../socket.js";
 export const getUserNotifications = async (req, res) => {
   try {
     const userId = req.user._id;
-    const notifications = await Notification.find({ userId })
+    const role = req.user.role;
+
+    // Only show notification types relevant to this user's role
+    let typeFilter;
+    if (role === "admin") {
+      typeFilter = { $in: ["personal", "admin_alert", "complaint"] };
+    } else if (role === "police") {
+      typeFilter = { $in: ["personal", "police_alert"] };
+    } else {
+      // citizen/user — only see their own personal messages and nearby safe alerts
+      typeFilter = { $in: ["personal", "citizen_alert"] };
+    }
+
+    const notifications = await Notification.find({ userId, type: typeFilter })
       .populate("crimeId", "title status location crimeType")
       .sort({ createdAt: -1 });
 
@@ -43,12 +56,13 @@ export const markAllAsRead = async (req, res) => {
 };
 
 // Helper: Notify a user about a crime status change
-export const notifyUserCrimeStatus = async (userId, crimeId, message) => {
+export const notifyUserCrimeStatus = async (userId, crimeId, message, type = "personal") => {
   try {
     const notification = await Notification.create({
       userId,
       crimeId,
       message,
+      type,
     });
     
     // PUSH VIA SOCKET

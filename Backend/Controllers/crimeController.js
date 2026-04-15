@@ -29,8 +29,8 @@ const notifyByRole = async (role, crimeId, message) => {
 };
 
 // Helper function for bulk notifications
-const bulkNotify = async (userIds, crimeId, message) => {
-  const docs = userIds.map((userId) => ({ userId, crimeId, message }));
+const bulkNotify = async (userIds, crimeId, message, type = "personal") => {
+  const docs = userIds.map((userId) => ({ userId, crimeId, message, type }));
   await Notification.insertMany(docs, { ordered: false });
 };
 
@@ -180,9 +180,9 @@ export const createCrimeReport = async (req, res) => {
       const adminMessage = `🔴 URGENT: New crime report in ${crime.location.address} - "${crime.title}"`;
       const safeAlertMessage = `🛡️ SAFE ALERT: A ${crime.crimeType} has been reported within 5km of your location. Authorities have been notified. Please stay vigilant and avoid the ${crime.location.address} area if possible.`;
 
-      // 3. In-App Notifications (Bulk)
-      if (adminIds.length) await bulkNotify(adminIds, crime._id, adminMessage);
-      if (citizenIds.length) await bulkNotify(citizenIds, crime._id, safeAlertMessage);
+      // 3. In-App Notifications (Bulk) — tagged with recipient type
+      if (adminIds.length) await bulkNotify(adminIds, crime._id, adminMessage, "admin_alert");
+      if (citizenIds.length) await bulkNotify(citizenIds, crime._id, safeAlertMessage, "citizen_alert");
 
       // 4. Socket.io Real-time Broadcast
       const io = getIO();
@@ -227,7 +227,8 @@ export const createCrimeReport = async (req, res) => {
       await Notification.create({
         userId: req.user._id,
         crimeId: crime._id,
-        message: reporterMessage
+        message: reporterMessage,
+        type: "personal",
       });
       
       if (io) {

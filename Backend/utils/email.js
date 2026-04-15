@@ -58,15 +58,32 @@ export const ensureTransporterReady = async () => {
 };
 
 // Helper for professional email templates
-const getEmailTemplate = (title, crimeType, location, description, priority, crimeId) => {
+const getEmailTemplate = (crime, customMessage = null) => {
   const priorityColors = {
     Critical: "#ef4444",
     High: "#f97316",
     Medium: "#3b82f6",
     Low: "#10b981"
   };
-  const color = priorityColors[priority] || "#3b82f6";
+  const color = priorityColors[crime.priority] || "#3b82f6";
   const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
+  const mapLink = crime.location?.lat ? `https://www.google.com/maps?q=${crime.location.lat},${crime.location.lng}` : "#";
+
+  let evidenceHtml = "";
+  if (crime.evidence && crime.evidence.length > 0) {
+    evidenceHtml = `
+      <div style="margin-top: 24px;">
+        <p style="color: #64748b; font-size: 12px; font-weight: 600; text-transform: uppercase; margin: 0 0 12px;">Evidence / Attachments</p>
+        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+          ${crime.evidence.map(ev => `
+            <div style="width: 120px; height: 120px; border-radius: 8px; overflow: hidden; border: 1px solid #e5e7eb;">
+              <img src="${ev.url}" alt="Evidence" style="width: 100%; height: 100%; object-fit: cover;" />
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    `;
+  }
 
   return `
     <div style="font-family: 'Inter', system-ui, -apple-system, sans-serif; max-width: 600px; margin: 0 auto; background-color: #f9fafb; border-radius: 16px; overflow: hidden; border: 1px solid #e5e7eb; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
@@ -81,37 +98,39 @@ const getEmailTemplate = (title, crimeType, location, description, priority, cri
       <!-- Content Body -->
       <div style="padding: 32px 24px; background-color: #ffffff;">
         <div style="display: inline-block; padding: 4px 12px; border-radius: 9999px; background-color: ${color}15; color: ${color}; font-size: 12px; font-weight: 700; text-transform: uppercase; margin-bottom: 16px;">
-          ${priority} Priority Case
+          ${crime.priority || 'Medium'} Priority Case
         </div>
         
-        <h2 style="color: #111827; margin: 0 0 12px; font-size: 20px; font-weight: 700;">${title}</h2>
-        <p style="color: #4b5563; line-height: 1.6; margin: 0 0 24px; font-size: 15px;">${description}</p>
+        <h2 style="color: #111827; margin: 0 0 12px; font-size: 20px; font-weight: 700;">${crime.title}</h2>
+        <p style="color: #4b5563; line-height: 1.6; margin: 0 0 24px; font-size: 15px;">${customMessage || crime.description}</p>
 
         <!-- Detail Grid -->
         <div style="background-color: #f8fafc; border-radius: 12px; padding: 20px; margin-bottom: 32px; border: 1px solid #f1f5f9;">
           <div style="margin-bottom: 16px;">
             <p style="color: #64748b; font-size: 12px; font-weight: 600; text-transform: uppercase; margin: 0 0 4px;">Incident Type</p>
-            <p style="color: #334155; font-size: 14px; margin: 0; font-weight: 500;">${crimeType}</p>
+            <p style="color: #334155; font-size: 14px; margin: 0; font-weight: 500;">${crime.crimeType}</p>
           </div>
-          <div>
+          <div style="margin-bottom: 16px;">
             <p style="color: #64748b; font-size: 12px; font-weight: 600; text-transform: uppercase; margin: 0 0 4px;">Location</p>
-            <p style="color: #334155; font-size: 14px; margin: 0; font-weight: 500;">📍 ${location || "Location shared with authorities"}</p>
+            <p style="color: #334155; font-size: 14px; margin: 0; font-weight: 500;">📍 ${crime.location?.address || "Location shared with authorities"}</p>
+            ${crime.location?.lat ? `<a href="${mapLink}" style="color: #2563eb; font-size: 12px; text-decoration: none; font-weight: 600;">Show on Interactive Map →</a>` : ""}
           </div>
+          ${evidenceHtml}
         </div>
 
         <!-- Action Button -->
         <div style="text-align: center;">
-          <a href="${frontendUrl}/report/${crimeId}" style="display: inline-block; background-color: #2563eb; color: #ffffff; padding: 14px 32px; border-radius: 8px; font-weight: 600; text-decoration: none; font-size: 14px; transition: background-color 0.2s;">
-            View Full Report Status
+          <a href="${frontendUrl}/report/${crime._id}" style="display: inline-block; background-color: #2563eb; color: #ffffff; padding: 14px 32px; border-radius: 8px; font-weight: 600; text-decoration: none; font-size: 14px; transition: background-color 0.2s;">
+            View Intelligence Record
           </a>
         </div>
       </div>
 
       <!-- Footer -->
       <div style="padding: 24px; background-color: #f8fafc; border-top: 1px solid #e5e7eb; text-align: center;">
-        <p style="color: #94a3b8; font-size: 12px; margin: 0 0 12px;">You are receiving this alert because you are a registered member of the Crime Track community.</p>
+        <p style="color: #94a3b8; font-size: 11px; margin: 0 0 12px;">This is an automated safety alert. If this is an active emergency, call 100 or use the SOS feature in your dashboard.</p>
         <div style="color: #64748b; font-size: 12px; font-weight: 500;">
-          © 2026 CrimeTrack. All rights reserved.
+          © 2026 CrimeTrack. Secure Network Transmission.
         </div>
       </div>
     </div>
@@ -121,14 +140,7 @@ const getEmailTemplate = (title, crimeType, location, description, priority, cri
 // Send crime alert email (Professional version)
 export const sendCrimeAlertEmail = async (user, crime, customMessage = null, customHtml = null) => {
   try {
-    const html = getEmailTemplate(
-      crime.title,
-      crime.crimeType,
-      crime.location?.address,
-      customMessage || crime.description,
-      crime.priority || "Medium",
-      crime._id
-    );
+    const html = getEmailTemplate(crime, customMessage);
 
     const transporter = getTransporter();
     await transporter.sendMail({

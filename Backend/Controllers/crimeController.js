@@ -151,60 +151,43 @@ export const createCrimeReport = async (req, res) => {
     console.log("✅ Crime report saved to database:", crime._id);
 
     // ═══════════════════════════════════════════════════════════
-    // PROFESSIONAL WORKFLOW: IMMEDIATE BROADCAST NOTIFICATION
+    // PROFESSIONAL WORKFLOW: TARGETED BROADCAST NOTIFICATION
     // ═══════════════════════════════════════════════════════════
-    let adminIds = [];
-    let citizenIds = [];
-
     try {
-      console.log("🔔 Starting notification broadcast...");
+      console.log("🔔 Starting targeted notification broadcast...");
       
-      // 1. Fetch all stakeholders (Admins, Police, and Citizens)
-      const allStakeholders = await User.find(
-        { isOtpVerified: true },
-        "_id email role"
-      );
-
-      const recipients = [];
-
-      allStakeholders.forEach(u => {
-        if (u.role === "admin") adminIds.push(u._id);
-        else if (u.role === "user") citizenIds.push(u._id);
-
-        // Add to email list (don't send to the reporter)
-        if (u._id.toString() !== req.user._id.toString()) {
-          recipients.push(u);
+      // 1. Find all Admins (Always notified)
+      const admins = await User.find({ role: "admin", isOtpVerified: true }, "_id email role");
+      
+      // 2. Find NEARBY Citizens (within 5km of the crime)
+      const nearbyCitizens = await User.find({
+        role: "user",
+        isOtpVerified: true,
+        _id: { $ne: req.user._id }, // Don't notify the reporter
+        "stationLocation.coordinates": {
+           $near: {
+             $geometry: { type: "Point", coordinates: [parsedLng, parsedLat] },
+             $maxDistance: 5000 // 5km Radius
+           }
         }
-      });
+      }, "_id email role");
 
-      console.log(`👥 Found ${allStakeholders.length} stakeholders: ${adminIds.length} admins, ${citizenIds.length} citizens`);
+      const adminIds = admins.map(a => a._id);
+      const citizenIds = nearbyCitizens.map(c => c._id);
+      
+      console.log(`🎯 Targeted Broadcast: ${admins.length} admins, ${nearbyCitizens.length} nearby citizens contacted.`);
 
-      const adminMessage = `🔴 URGENT: New crime report requires verification - "${crime.title}"`;
-      const adminHtml = `
-        <div style="font-family: Arial, sans-serif; padding: 20px; border: 1px solid #ef4444; border-radius: 10px;">
-          <h2 style="color: #b91c1c;">New Critical Report</h2>
-          <p>A new crime report has been submitted and is awaiting your verification.</p>
-          <div style="background: #fef2f2; padding: 15px; border-radius: 8px; margin: 15px 0;">
-            <p><strong>Title:</strong> ${crime.title}</p>
-            <p><strong>Type:</strong> ${crime.crimeType}</p>
-            <p><strong>Location:</strong> ${crime.location.address}</p>
-          </div>
-          <a href="${process.env.FRONTEND_URL}/admin/verify/${crime._id}" style="display: inline-block; background: #2563eb; color: #fff; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Verify Report Now</a>
-        </div>
-      `;
-      const generalMessage = `📢 Community Alert: A new crime report has been filed: "${crime.title}" (${crime.crimeType}). Our team is currently verifying the incident.`;
+      const adminMessage = `🔴 URGENT: New crime report in ${crime.location.address} - "${crime.title}"`;
+      const safeAlertMessage = `🛡️ SAFE ALERT: A ${crime.crimeType} has been reported within 5km of your location. Authorities have been notified. Please stay vigilant and avoid the ${crime.location.address} area if possible.`;
 
-      // 2. In-App Notifications (Bulk)
-      console.log("📱 Creating in-app notifications...");
+      // 3. In-App Notifications (Bulk)
       if (adminIds.length) await bulkNotify(adminIds, crime._id, adminMessage);
-      if (citizenIds.length) await bulkNotify(citizenIds, crime._id, generalMessage);
-      console.log("✅ In-app notifications created");
+      if (citizenIds.length) await bulkNotify(citizenIds, crime._id, safeAlertMessage);
 
-      // 3. Socket.io Real-time Broadcast
+      // 4. Socket.io Real-time Broadcast
       const io = getIO();
       if (io) {
-        console.log("📡 Broadcasting via Socket.io...");
-        // Notify Admin Room
+        // Notify Admins
         io.to("admin_room").emit("new_notification", {
           type: "crime_report",
           crimeId: crime._id,
@@ -215,36 +198,53 @@ export const createCrimeReport = async (req, res) => {
           timestamp: new Date().toISOString()
         });
 
-        // Notify General Room (Optional awareness)
-        io.emit("new_public_alert", {
-          title: crime.title,
-          type: crime.crimeType,
-          location: crime.location.address
+        // Notify Nearby Users (Real-time)
+        citizenIds.forEach(id => {
+          io.to(`user_${id}`).emit("new_notification", {
+            type: "safe_alert",
+            crimeId: crime._id,
+            title: "SAFE ALERT",
+            message: safeAlertMessage,
+            priority: "high",
+            timestamp: new Date().toISOString()
+          });
         });
-        console.log("✅ Socket.io broadcast complete");
       }
 
-      // 4. Production-Level Email Broadcast (Non-blocking)
-      console.log(`📧 Sending email notifications to ${recipients.length} users (${adminIds.length} admins, ${citizenIds.length} citizens)`);
-      
-      recipients.forEach((recipient) => {
-        const msg = recipient.role === "admin" ? adminMessage : generalMessage;
-        const customHtml = recipient.role === "admin" ? adminHtml : null;
-        sendCrimeAlertEmail(recipient, crime, msg, customHtml)
-          .then(() => console.log(`✅ Email sent to ${recipient.email} (${recipient.role})`))
-          .catch((err) => console.error(`❌ Email failed for ${recipient.email}:`, err.message));
+      // 5. Email Broadcast
+      admins.forEach(admin => {
+        sendCrimeAlertEmail(admin, crime, adminMessage)
+          .catch(err => console.error(`❌ Admin email failed: ${admin.email}`, err.message));
       });
 
-      // 5. Send Confirmation to Reporter
-      sendCrimeAlertEmail(req.user, crime, "✅ Thank you for your report. Our team has been notified and will verify the details shortly.")
-        .then(() => console.log(`✅ Confirmation email sent to reporter: ${req.user.email}`))
-        .catch((err) => console.error(`❌ Reporter confirmation failed for ${req.user.email}:`, err.message));
+      nearbyCitizens.forEach(citizen => {
+        sendCrimeAlertEmail(citizen, crime, safeAlertMessage)
+          .catch(err => console.error(`❌ Safe Alert email failed: ${citizen.email}`, err.message));
+      });
 
-      console.log("✅ All notifications processed successfully");
+      // 6. Confirmation to Reporter (In-App + Socket + Email)
+      const reporterMessage = "✅ Your report has been submitted. Our admin team is reviewing your record.";
+      await Notification.create({
+        userId: req.user._id,
+        crimeId: crime._id,
+        message: reporterMessage
+      });
+      
+      if (io) {
+        io.to(`user_${req.user._id}`).emit("new_notification", {
+          type: "report_confirmation",
+          crimeId: crime._id,
+          message: reporterMessage,
+          timestamp: new Date().toISOString()
+        });
+      }
+
+      sendCrimeAlertEmail(req.user, crime, `✅ Your report has been submitted. Nearby citizens have been issued a safe alert, and our admin team is reviewing your record.`)
+        .catch(err => console.error(`❌ Reporter email failed: ${req.user.email}`, err.message));
+
+      console.log("✅ Targeted notifications processed successfully");
     } catch (notificationError) {
-      // Don't fail the entire request if notifications fail
-      console.error("⚠️ Notification broadcast failed (non-critical):", notificationError.message);
-      console.error("Stack:", notificationError.stack);
+      console.error("⚠️ Targeted notification failed:", notificationError.message);
     }
 
     return res.status(201).json({

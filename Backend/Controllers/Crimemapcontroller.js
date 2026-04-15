@@ -101,45 +101,67 @@ export const submitCrimeReport = async (req, res) => {
       data: report,
     });
 
-    // ── BROADCAST NOTIFICATIONS (Professional Workflow) ─────────────
+    // ── TARGETED PROXIMITY NOTIFICATIONS (Professional Workflow) ─────────────
     try {
-      const allUsers = await User.find({ isOtpVerified: true }, "_id email role");
+      console.log("🔔 Processing targeted alerts for map incident...");
+      
+      // 1. Find all Admins/Police (Global safety stakeholders)
+      const staff = await User.find(
+        { role: { $in: ["admin", "police"] }, isOtpVerified: true },
+        "_id email role"
+      );
+      
+      // 2. Find NEARBY Citizens (within 5km of the incident)
+      const nearbyCitizens = await User.find({
+        role: "user",
+        isOtpVerified: true,
+        _id: { $ne: req.user._id }, // Don't notify the reporter in the broad alert
+        "stationLocation.coordinates": {
+           $near: {
+             $geometry: { type: "Point", coordinates: [parseFloat(longitude), parseFloat(latitude)] },
+             $maxDistance: 5000 // 5km Radius
+           }
+        }
+      }, "_id email role");
+
+      const adminIds = staff.filter(u => u.role === "admin").map(u => u._id);
+      const policeIds = staff.filter(u => u.role === "police").map(u => u._id);
+      const citizenIds = nearbyCitizens.map(u => u._id);
+
+      console.log(`🎯 Targeted Broadcast: ${adminIds.length} admins, ${policeIds.length} police, ${citizenIds.length} nearby citizens.`);
+
       const adminMessage = `🚨 NEW MAP REPORT: ${report.crimeType} at ${report.address}`;
-      const generalMessage = `⚠️ Nearby Incident: ${report.crimeType} reported at ${report.address}`;
+      const safeAlertMessage = `🛡️ SAFE ALERT: A ${report.crimeType} has been reported within 5km of your location on the community map. Authorities have been alerted. Please stay vigilant.`;
 
-      const io = getIO();
-      if (io) io.emit("new_public_alert", { title: report.crimeType, location: report.address });
-
-      const adminIds = [];
-      const policeIds = [];
-      const citizenIds = [];
-
-      allUsers.forEach(user => {
-        if (user.role === "admin") adminIds.push(user._id);
-        else if (user.role === "police") policeIds.push(user._id);
-        else citizenIds.push(user._id);
-
-        if (user._id.toString() === req.user._id.toString()) return;
-
-        const msg = (user.role === 'admin' || user.role === 'police') ? adminMessage : generalMessage;
-        
-        // Send email alerts in production style
-        sendCrimeAlertEmail(user, {
-          title: report.crimeType,
-          crimeType: report.crimeType,
-          description: report.description,
-          location: { address: report.address },
-          priority: report.severity || "Medium",
-          _id: report._id
-        }, msg).catch(e => console.error("Map report email failed:", e.message));
-      });
-
-      // Bulk In-App Notifications
+      // 3. In-App Notifications (Bulk)
       if (adminIds.length) await bulkNotify(adminIds, report._id, adminMessage);
-      if (policeIds.length) await bulkNotify(policeIds, report._id, `📋 New Map Incident: ${report.crimeType}`);
-      if (citizenIds.length) await bulkNotify(citizenIds, report._id, generalMessage);
+      if (policeIds.length) await bulkNotify(policeIds, report._id, `📋 New Map Incident: ${report.crimeType} at ${report.address}`);
+      if (citizenIds.length) await bulkNotify(citizenIds, report._id, safeAlertMessage);
 
-      // Confirmation to Reporter
+      // 4. Socket.io targeted delivery
+      const io = getIO();
+      if (io) {
+        // Notify Admins & Police (Global/Room based)
+        io.to("admin_room").emit("new_notification", { type: "map_report", message: adminMessage });
+        io.to("police_room").emit("new_notification", { type: "map_report", message: `📋 New Case: ${report.crimeType}` });
+
+        // Notify Nearby Users individually for accurate dashboard syncing
+        citizenIds.forEach(id => {
+          io.to(`user_${id}`).emit("new_notification", {
+            type: "safe_alert",
+            message: safeAlertMessage,
+            timestamp: new Date().toISOString()
+          });
+        });
+      }
+
+      // 5. Confirmation to Reporter (In-app + Email)
+      await Notification.create({
+        userId: req.user._id,
+        crimeId: report._id,
+        message: "✅ Your report has been pinned to the community map. Nearby citizens have been alerted."
+      });
+      
       sendCrimeAlertEmail(req.user, {
         title: report.crimeType,
         crimeType: report.crimeType,
@@ -148,6 +170,27 @@ export const submitCrimeReport = async (req, res) => {
         priority: report.severity || "Medium",
         _id: report._id
       }, "✅ Your map-based report has been received. Thank you for helping keep the community safe.").catch(e => console.error("Map reporter confirmation failed:", e.message));
+
+      // 6. Targeted Emails
+      staff.forEach(user => {
+        sendCrimeAlertEmail(user, {
+          title: report.crimeType,
+          crimeType: report.crimeType,
+          location: { address: report.address },
+          priority: report.severity || "Medium",
+          _id: report._id
+        }, adminMessage).catch(e => {});
+      });
+
+      nearbyCitizens.forEach(user => {
+        sendCrimeAlertEmail(user, {
+          title: report.crimeType,
+          crimeType: report.crimeType,
+          location: { address: report.address },
+          priority: report.severity || "Medium",
+          _id: report._id
+        }, safeAlertMessage).catch(e => {});
+      });
 
     } catch (err) {
       console.error("Broadcast failed for map report:", err.message);

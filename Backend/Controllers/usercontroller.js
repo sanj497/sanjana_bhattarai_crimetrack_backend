@@ -195,14 +195,16 @@ export const register = async (req, res) => {
       existingUser.password = hashedPassword;
       existingUser.otp = otp;
       existingUser.otpExpiry = new Date(Date.now() + 10 * 60 * 1000);
-      if (role === "police") {
-        existingUser.role = "user";
-        existingUser.stationDistrict = stationDistrict;
+      if (hasValidStationCoordinates) {
         existingUser.stationLocation = {
           lat: parsedStationLat,
           lng: parsedStationLng,
           coordinates: [parsedStationLng, parsedStationLat],
         };
+      }
+      if (role === "police") {
+        existingUser.role = "user"; // Kept as user until verified
+        existingUser.stationDistrict = stationDistrict;
         existingUser.policeVerification = {
           status: "pending",
           badgeNumber,
@@ -238,7 +240,7 @@ export const register = async (req, res) => {
         otpExpiry: new Date(Date.now() + 10 * 60 * 1000),
         isOtpVerified: false,
         stationDistrict: role === "police" ? stationDistrict : null,
-        stationLocation: role === "police"
+        stationLocation: hasValidStationCoordinates
           ? {
               lat: parsedStationLat,
               lng: parsedStationLng,

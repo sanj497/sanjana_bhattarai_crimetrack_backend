@@ -733,6 +733,16 @@ export const getCrimeById = async (req, res) => {
     }
 
     if (!crime) return res.status(404).json({ error: "Intelligence Record not found across any databases" });
+    
+    // ── SECURITY CLEARANCE CHECK ─────────────────────────────────
+    // Allow if: User is Admin, User is Police, OR User is the original reporter
+    const isStaff = ["admin", "police"].includes(req.user.role);
+    const isOwner = crime.userId && crime.userId._id?.toString() === req.user._id?.toString();
+    
+    if (!isStaff && !isOwner) {
+      console.warn(`🔒 Unauthorized detail access attempt: User ${req.user._id} on Case ${id}`);
+      return res.status(403).json({ error: "Insufficient security clearance to view full intelligence data." });
+    }
 
     res.json({ success: true, crime });
   } catch (error) {
@@ -891,5 +901,63 @@ export const sendManualSafeAlert = async (req, res) => {
   } catch (error) {
     console.error("sendManualSafeAlert error:", error);
     return res.status(500).json({ error: "Broadcast failed" });
+  }
+};
+
+// ─────────────────────────────────────────────────────────────────
+// BROADCAST COMMUNITY ALERT (Admin Action)
+// @desc    Notify ALL verified citizens about a dangerous/critical incident
+// @route   POST /api/report/:id/broadcast-community-alert
+// ─────────────────────────────────────────────────────────────────
+export const broadcastCommunityAlert = async (req, res) => {
+  try {
+    const { customMessage } = req.body;
+    const crime = await Crime.findById(req.params.id);
+    if (!crime) return res.status(404).json({ error: "Case not found" });
+
+    // 1. Target all verified users
+    const verifiedUsers = await User.find({ role: "user", isOtpVerified: true }, "_id email username");
+    if (!verifiedUsers.length) {
+      return res.status(400).json({ error: "No verified citizens found in database." });
+    }
+
+    const alertTitle = `🚨 URGENT CRIME ALERT: ${crime.crimeType}`;
+    const alertMessage = customMessage || `CRITICAL SAFETY ALERT: A ${crime.crimeType} has been confirmed at ${crime.location.address}. This incident is classified as ${crime.priority}. Please stay vigilant and exercise extreme caution in this area.`;
+
+    // 2. Prepare bulk notifications (Database)
+    const userIds = verifiedUsers.map(u => u._id);
+    await bulkNotify(userIds, crime._id, alertMessage, "citizen_alert");
+
+    // 3. Real-time Broadcasting (Email + Socket)
+    const io = getIO();
+    
+    // Broadcast to the whole users room via socket for immediate impact
+    if (io) {
+      io.to("users_room").emit("new_notification", {
+        type: "citizen_alert",
+        crimeId: crime._id,
+        title: "CRITICAL SAFETY ALERT",
+        message: alertMessage,
+        priority: "critical",
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // Individual Emails (Processed in background to avoid blocking response)
+    verifiedUsers.forEach(user => {
+      sendCrimeAlertEmail(user, crime, alertMessage)
+        .catch(err => console.error(`❌ Community Alert email failed: ${user.email}`, err.message));
+    });
+
+    console.log(`📡 Community-wide alert issued for ${crime._id} to ${verifiedUsers.length} users`);
+
+    return res.json({
+      success: true,
+      msg: `Critical community alert successfully issued to ${verifiedUsers.length} verified citizens.`,
+      notifiedCount: verifiedUsers.length
+    });
+  } catch (error) {
+    console.error("broadcastCommunityAlert error:", error);
+    return res.status(500).json({ error: "Community broadcast failed" });
   }
 };

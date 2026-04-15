@@ -35,7 +35,7 @@ const handleUpload = (req, res, next) => {
 
 // ── Routes ────────────────────────────────────────────────────────
 // ── PRIMARY CASE ACCESS ───────────────────────────────────────────
-router.get("/detail/:id",             authMiddleware, adminMiddleware,      getCrimeById);
+router.get("/detail/:id",             authMiddleware,                      getCrimeById); // Allowed for any auth (User/Admin/Police) - permission check inside
 
 // ── Submission ────────────────────────────────────────────────────
 router.post("/report",        authMiddleware,                      handleUpload, createCrimeReport);
@@ -53,6 +53,7 @@ router.post("/:id/forward",   authMiddleware, adminMiddleware,      forwardToPol
 router.get("/:id/nearby-police", authMiddleware, adminMiddleware,   getNearbyPolice);
 router.get("/:id/nearby-citizens", authMiddleware, adminMiddleware, getNearbyCitizens);
 router.post("/:id/broadcast-safe-alert", authMiddleware, adminMiddleware, sendManualSafeAlert);
+router.post("/:id/broadcast-community-alert", authMiddleware, adminMiddleware, broadcastCommunityAlert);
 
 // Community Dashboard
 router.get("/community",      optionalAuth,                        getPublicFeed);

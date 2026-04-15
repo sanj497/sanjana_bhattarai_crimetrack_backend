@@ -2,7 +2,7 @@ import User from '../Models/usermodel.js';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { getTransporter, ensureTransporterReady } from "../utils/email.js";
-import dotenv from 'dotenv';
+
 
 dotenv.config();
 

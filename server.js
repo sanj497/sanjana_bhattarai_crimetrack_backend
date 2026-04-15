@@ -1,22 +1,22 @@
 import dotenv from "dotenv";
-dotenv.config({ path: "./backend/.env" });
+dotenv.config({ path: "./Backend/.env" });
 
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import { createServer } from "http";
-import connectDB from "./backend/config/mongodb.js";
+import connectDB from "./Backend/config/mongodb.js";
 
 // Routes
-import userroute from "./backend/Route/userroute.js";
-import reportroute from "./backend/Route/crimeRoutes.js";
-import notificationroute from "./backend/Route/notificationRoutes.js";
-import feedbackroute from "./backend/Route/FeedbackRoutes.js";
-import Crimereportroutes from "./backend/Route/Crimereportroutes.js";
-import complaintRoutes from "./backend/Route/Complaintroutes.js";
-import emergencyRoutes from "./backend/Route/emergencyRoutes.js";
-import { initSocket } from "./backend/socket.js";
+import userroute from "./Backend/Route/userroute.js";
+import reportroute from "./Backend/Route/crimeRoutes.js";
+import notificationroute from "./Backend/Route/notificationRoutes.js";
+import feedbackroute from "./Backend/Route/FeedbackRoutes.js";
+import Crimereportroutes from "./Backend/Route/Crimereportroutes.js";
+import complaintRoutes from "./Backend/Route/Complaintroutes.js";
+import emergencyRoutes from "./Backend/Route/emergencyRoutes.js";
+import { initSocket } from "./Backend/socket.js";
 
 const app = express();
 const port = process.env.PORT || 5000;
@@ -36,7 +36,7 @@ console.log("🛡️ trust proxy setting:", app.get("trust proxy"));
 // ── CORS CONFIGURATION (MUST BE BEFORE ROUTES) ────────────────────
 const allowedOrigins = [
   "http://localhost:5173",
-  "https://sanjana-bhattarai-crimetrack-fronte.vercel.app",
+  "https://sanjana-bhattarai-crimetrack-frontend.vercel.app",
   process.env.FRONTEND_URI,
   process.env.FRONTEND_URL
 ].filter(Boolean);
@@ -60,8 +60,7 @@ app.use(cors({
   allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"]
 }));
 
-// Handle preflight requests explicitly
-app.options("/:any*", cors());
+// Preflight requests are handled by the cors() middleware above.
 
 // Additional CORS headers as fallback
 app.use((req, res, next) => {

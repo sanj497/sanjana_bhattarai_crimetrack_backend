@@ -9,6 +9,12 @@ export const getTransporter = () => {
       throw new Error("Email credentials are missing. Set EMAIL_USER and EMAIL_PASS in backend environment variables.");
     }
 
+    // Handle EMAIL_PASS with or without quotes
+    let emailPass = process.env.EMAIL_PASS;
+    if (emailPass && (emailPass.startsWith('"') || emailPass.startsWith("'"))) {
+      emailPass = emailPass.slice(1, -1);
+    }
+
     const hasCustomSmtp =
       process.env.EMAIL_HOST && process.env.EMAIL_PORT && process.env.EMAIL_SECURE !== undefined;
 
@@ -20,14 +26,14 @@ export const getTransporter = () => {
             secure: process.env.EMAIL_SECURE === "true",
             auth: {
               user: process.env.EMAIL_USER,
-              pass: process.env.EMAIL_PASS,
+              pass: emailPass,
             },
           }
         : {
             service: "gmail",
             auth: {
               user: process.env.EMAIL_USER,
-              pass: process.env.EMAIL_PASS,
+              pass: emailPass,
             },
           }
     );
@@ -39,7 +45,6 @@ export const getTransporter = () => {
       })
       .catch((error) => {
         console.error("❌ Email transporter verification failed:", error.message);
-        throw error;
       });
   }
   return transporterInstance;
@@ -47,7 +52,9 @@ export const getTransporter = () => {
 
 export const ensureTransporterReady = async () => {
   getTransporter();
-  await transporterReady;
+  if (transporterReady) {
+    await transporterReady;
+  }
 };
 
 // Helper for professional email templates

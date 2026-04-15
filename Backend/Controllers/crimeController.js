@@ -858,25 +858,42 @@ export const getNearbyCitizens = async (req, res) => {
 // ─────────────────────────────────────────────────────────────────
 export const sendManualSafeAlert = async (req, res) => {
   try {
-    const { citizenIds, customMessage } = req.body;
+    const { customMessage } = req.body;
+    let { citizenIds } = req.body;
     const crime = await Crime.findById(req.params.id);
     if (!crime) return res.status(404).json({ error: "Case not found" });
 
+    // 1. If no specific citizens selected, automatically find all un-notified users in 10km zone
     if (!citizenIds || !citizenIds.length) {
-      return res.status(400).json({ error: "No citizens selected for broadcast." });
+      const nearby = await User.find({
+        role: "user",
+        _id: { $ne: crime.userId }, // Exclude the original reporter
+        location: {
+          $near: {
+            $geometry: { type: "Point", coordinates: crime.location.coordinates },
+            $maxDistance: 10000 // 10km
+          }
+        }
+      }).select("_id email username");
+      
+      citizenIds = nearby.map(u => u._id);
+      
+      if (!citizenIds.length) {
+        return res.status(200).json({ success: true, notifiedCount: 0, msg: "No citizens identified in the alert zone." });
+      }
     }
 
-    const safeAlertMessage = customMessage || `🛡️ SAFE ALERT: A ${crime.crimeType} has been reported at ${crime.location.address}. Please stay vigilant and avoid the area if possible. Authorities are investigating.`;
+    const safeAlertMessage = customMessage || `🛡️ SAFE ALERT: A ${crime.crimeType} has been confirmed at ${crime.location.address}. Please stay vigilant and exercise caution in this area. Authorities are coordinating response.`;
 
-    // 1. Bulk In-App Notifications
+    // 2. Bulk Database Notifications
     await bulkNotify(citizenIds, crime._id, safeAlertMessage, "citizen_alert");
 
-    // 2. Real-time Socket Broadcast & Email
+    // 3. Real-time Dispatch (Email + Socket)
     const io = getIO();
     const citizens = await User.find({ _id: { $in: citizenIds } }, "email username");
 
     citizens.forEach(citizen => {
-      // Real-time socket
+      // Real-time Dashboard Popup
       if (io) {
         io.to(`user_${citizen._id}`).emit("new_notification", {
           type: "safe_alert",
@@ -888,22 +905,22 @@ export const sendManualSafeAlert = async (req, res) => {
         });
       }
 
-      // Email
+      // Email Alert
       sendCrimeAlertEmail(citizen, crime, safeAlertMessage)
         .catch(err => console.error(`❌ Safe Alert email failed: ${citizen.email}`, err.message));
     });
 
-    // 3. Mark crime record with persistent notification flag
+    // 4. Mark crime as community-notified
     await Crime.findByIdAndUpdate(crime._id, { "notificationsSent.community": true });
 
     return res.json({
       success: true,
-      msg: `Safety broadcast successfully sent to ${citizens.length} citizens.`,
+      msg: `Safety broadcast successfully dispatched to ${citizens.length} citizens in the vicinity.`,
       notifiedCount: citizens.length
     });
   } catch (error) {
     console.error("sendManualSafeAlert error:", error);
-    return res.status(500).json({ error: "Broadcast failed" });
+    return res.status(500).json({ error: "Emergency broadcast failed" });
   }
 };
 

@@ -41,7 +41,7 @@ router.post("/report",        authMiddleware,                      handleUpload,
 // ── Standard Retrieval ────────────────────────────────────────────
 router.get("/",               authMiddleware, adminMiddleware,      getAllCrimes);
 router.get("/mine",           authMiddleware,                      getMyCrimes);
-router.get("/stats",          authMiddleware, adminMiddleware,      getDashboardStats);
+router.get("/stats",          authMiddleware,                      getDashboardStats);
 router.get("/performance",    authMiddleware,                      getTransparencyStats);
 
 // ── Status & Workflow ─────────────────────────────────────────────

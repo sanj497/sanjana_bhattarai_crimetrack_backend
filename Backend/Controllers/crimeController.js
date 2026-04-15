@@ -181,18 +181,20 @@ export const createCrimeReport = async (req, res) => {
 
     // 4. Production-Level Email Broadcast (Non-blocking)
     // We send emails to all verified users and admins as requested
+    console.log(`📧 Sending email notifications to ${recipients.length} users (${adminIds.length} admins, ${policeIds.length} police, ${citizenIds.length} citizens)`);
+    
     recipients.forEach((recipient) => {
       const msg = recipient.role === "admin" ? adminMessage : generalMessage;
       const customHtml = recipient.role === "admin" ? adminHtml : null;
-      sendCrimeAlertEmail(recipient, crime, msg, customHtml).catch((err) =>
-        console.error(`Email failed for ${recipient.email}:`, err.message)
-      );
+      sendCrimeAlertEmail(recipient, crime, msg, customHtml)
+        .then(() => console.log(`✅ Email sent to ${recipient.email} (${recipient.role})`))
+        .catch((err) => console.error(`❌ Email failed for ${recipient.email}:`, err.message));
     });
 
     // 5. Send Confirmation to Reporter
-    sendCrimeAlertEmail(req.user, crime, "✅ Thank you for your report. Our team has been notified and will verify the details shortly.").catch((err) =>
-      console.error(`Reporter confirmation failed for ${req.user.email}:`, err.message)
-    );
+    sendCrimeAlertEmail(req.user, crime, "✅ Thank you for your report. Our team has been notified and will verify the details shortly.")
+      .then(() => console.log(`✅ Confirmation email sent to reporter: ${req.user.email}`))
+      .catch((err) => console.error(`❌ Reporter confirmation failed for ${req.user.email}:`, err.message));
 
     return res.status(201).json({
       success: true,
@@ -658,7 +660,11 @@ export const getDashboardStats = async (req, res) => {
     });
   } catch (error) {
     console.error("getDashboardStats error:", error);
-    res.status(500).json({ error: "Stats fetch failed" });
+    res.status(500).json({ 
+      success: false,
+      error: "Stats fetch failed",
+      details: error.message 
+    });
   }
 };
 

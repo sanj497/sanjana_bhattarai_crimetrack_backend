@@ -61,7 +61,7 @@ app.use(cors({
 }));
 
 // Handle preflight requests explicitly
-app.options("(.*)", cors());
+app.options("/:any*", cors());
 
 // Additional CORS headers as fallback
 app.use((req, res, next) => {

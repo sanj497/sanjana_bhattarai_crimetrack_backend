@@ -6,7 +6,9 @@ export const getTransporter = () => {
   if (!transporterInstance) {
     if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
       console.warn("⚠️ Email credentials missing in environment variables!");
+      console.warn("📧 Email functionality will be disabled. Set EMAIL_USER and EMAIL_PASS in .env");
     }
+    
     transporterInstance = nodemailer.createTransport({
       service: "gmail",
       pool: true,
@@ -16,6 +18,16 @@ export const getTransporter = () => {
         user: process.env.EMAIL_USER,
         pass: process.env.EMAIL_PASS,
       },
+    });
+    
+    // Verify connection configuration (non-blocking)
+    transporterInstance.verify(function(error, success) {
+      if (error) {
+        console.error("❌ Email transporter verification failed:", error.message);
+        console.error("📧 Check your EMAIL_USER and EMAIL_PASS environment variables");
+      } else {
+        console.log("✅ Email transporter is ready to send messages");
+      }
     });
   }
   return transporterInstance;

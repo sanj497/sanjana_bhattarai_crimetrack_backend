@@ -1,8 +1,8 @@
 import mongoose from "mongoose";
 import dotenv from "dotenv";
-import Crime from "./Backend/Models/Crime.js";
+import Crime from "./backend/Models/Crime.js";
 
-dotenv.config({ path: "./Backend/.env" });
+dotenv.config({ path: "./backend/.env" });
 
 async function checkData() {
   try {

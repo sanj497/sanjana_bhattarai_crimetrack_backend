@@ -20,12 +20,18 @@ const createReportLimiter = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
+  validate: {
+    xForwardedForHeader: false,
+  },
 });
 
 const generalLimiter = rateLimit({
   windowMs: 60 * 1000,
   max: 100,
   message: { success: false, message: "Too many requests. Please slow down." },
+  validate: {
+    xForwardedForHeader: false,
+  },
 });
 
 router.use(generalLimiter);

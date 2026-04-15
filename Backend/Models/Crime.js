@@ -94,7 +94,9 @@ crimeSchema.index({ userId: 1, createdAt: -1 });
 crimeSchema.index({ "workflow.forwardedToPolice": 1, status: 1 });
 
 // Pre-save middleware to track status changes
-crimeSchema.pre("save", function (next) {
+// NOTE: On newer Mongoose versions, callback `next` may not be provided
+// in certain middleware flows. Keep this hook synchronous and avoid calling next().
+crimeSchema.pre("save", function () {
   if (this.isModified("status")) {
     this.statusHistory.push({
       status: this.status,
@@ -102,7 +104,6 @@ crimeSchema.pre("save", function (next) {
       notes: this.statusNotes || "",
     });
   }
-  next();
 });
 
 export default mongoose.model("Crime", crimeSchema);

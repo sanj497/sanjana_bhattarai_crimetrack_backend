@@ -439,22 +439,15 @@ export const forwardToPolice = async (req, res) => {
         "workflow.assignedAt": new Date()
       });
 
-      // Notify THE specific officer
-      if (io) {
-        io.to(`user_${assignedOfficerId}`).emit("new_notification", {
-          type: "crime_assigned",
-          crimeId: crime._id,
-          title: crime.title,
-          message: `🚨 NEW CASE ASSIGNED: "${crime.title}" - Evidence has been successfully forwarded to your unit. Please review the details and initiate field investigation immediately.`,
-          priority: "high",
-          timestamp: new Date().toISOString()
-        });
-      }
+      const assignedMessage = `🚨 NEW CASE ASSIGNED: "${crime.title}" - Evidence has been successfully forwarded to your unit. Please review the details and initiate field investigation immediately.`;
 
-      // 3. Email notification to the assigned officer
+      // Create in-app notification for assigned officer (DB + realtime socket)
+      await notifyUserCrimeStatus(assignedOfficerId, crime._id, assignedMessage);
+
+      // 3. Email notification ONLY to the assigned (nearest/selected) officer
       const officer = await User.findById(assignedOfficerId).select("email username");
       if (officer && officer.email) {
-        sendCrimeAlertEmail(officer, crime, `🚨 NEW CASE ASSIGNED: "${crime.title}" - Evidence has been successfully forwarded to your unit. Please initiate field investigation.`).catch(err => 
+        sendCrimeAlertEmail(officer, crime, assignedMessage).catch(err => 
           console.error(`Email failed for officer ${officer.email}:`, err.message)
         );
       }
@@ -483,14 +476,6 @@ export const forwardToPolice = async (req, res) => {
         timestamp: new Date().toISOString()
       });
     }
-
-    // 3. Send email to police department
-    const policeUsers = await User.find({ role: "police" }, "email");
-    policeUsers.forEach((officer) =>
-      sendCrimeAlertEmail(officer, crime, "🚨 New case assigned for investigation").catch((err) =>
-        console.error(`Police alert email failed for ${officer.email}:`, err.message)
-      )
-    );
 
     return res.json({
       success: true,

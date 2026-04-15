@@ -981,7 +981,24 @@ export const getAlertQueue = async (req, res) => {
     .sort({ createdAt: -1 })
     .populate("userId", "username email");
 
-    return res.json({ success: true, count: queue.length, queue });
+    // Enhance queue with nearby citizen count
+    const enhancedQueue = await Promise.all(queue.map(async (crime) => {
+      let nearbyCount = 0;
+      if (crime.location && crime.location.coordinates) {
+        nearbyCount = await User.countDocuments({
+          role: "user",
+          location: {
+            $near: {
+              $geometry: { type: "Point", coordinates: crime.location.coordinates },
+              $maxDistance: 10000 // 10km
+            }
+          }
+        });
+      }
+      return { ...crime.toObject(), nearbyCitizenCount: nearbyCount };
+    }));
+
+    return res.json({ success: true, count: enhancedQueue.length, queue: enhancedQueue });
   } catch (error) {
     console.error("getAlertQueue error:", error);
     res.status(500).json({ error: "Failed to fetch alert queue" });

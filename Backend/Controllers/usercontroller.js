@@ -23,8 +23,11 @@ export const registerStaff = async (req, res) => {
   try {
     const { username, email, password, role, secretKey, stationDistrict, badgeNumber } = req.body;
 
+    console.log(`📝 Staff registration attempt - Role: ${role}, Email: ${email}`);
+
     // Validate role
     if (!["admin", "police"].includes(role)) {
+      console.error("❌ Invalid role attempted:", role);
       return res.status(400).json({ msg: "Invalid role. Must be admin or police." });
     }
 
@@ -34,6 +37,7 @@ export const registerStaff = async (req, res) => {
 
     const expectedSecret = role === "admin" ? adminSecret : policeSecret;
     if (secretKey !== expectedSecret) {
+      console.error("❌ Invalid secret key for role:", role);
       return res.status(403).json({ msg: `Invalid authorization key for ${role} registration.` });
     }
 
@@ -54,30 +58,7 @@ export const registerStaff = async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, 10);
     const otp = generateOTP();
 
-    // Send OTP email
-    try {
-      await getTransporter().sendMail({
-        from: process.env.EMAIL_FROM || process.env.EMAIL_USER,
-        to: email,
-        subject: `CrimeTrack ${role === "admin" ? "Admin" : "Police Officer"} Account Verification`,
-        html: `
-          <div style="font-family: Arial, sans-serif; max-width: 500px; margin: auto; background: #0B1F3B; color: white; padding: 40px; border-radius: 16px;">
-            <h2 style="color: #00B8D9; margin-bottom: 4px;">CrimeTrack Staff Registration</h2>
-            <p style="color: #9CA3AF; margin-bottom: 24px;">Role: <strong style="color: white;">${role.toUpperCase()}</strong></p>
-            <p>Hello <strong>${username}</strong>,</p>
-            <p>Use the OTP below to complete your ${role} account registration. Valid for <strong>10 minutes</strong>.</p>
-            <div style="font-size: 40px; font-weight: bold; letter-spacing: 12px; margin: 24px 0; color: #1E5EFF; background: white; padding: 16px; border-radius: 12px; text-align: center;">
-              ${otp}
-            </div>
-            <p style="color: #9CA3AF; font-size: 12px;">If you did not initiate this registration, please disregard this email.</p>
-          </div>
-        `,
-      });
-    } catch (mailErr) {
-      console.error("STAFF EMAIL FAILED:", mailErr);
-      return res.status(500).json({ msg: "Failed to send OTP email.", error: mailErr.message });
-    }
-
+    // Create or update user
     if (existingUser) {
       existingUser.username = username;
       existingUser.password = hashedPassword;
@@ -86,29 +67,58 @@ export const registerStaff = async (req, res) => {
       existingUser.otpExpiry = new Date(Date.now() + 10 * 60 * 1000);
       if (stationDistrict) existingUser.stationDistrict = stationDistrict;
       await existingUser.save();
-
-      return res.status(200).json({ msg: "Account exists but unverified. New OTP sent." });
+      console.log("✅ Updated existing user record:", email);
+    } else {
+      const newUser = new User({
+        username,
+        email,
+        password: hashedPassword,
+        role,
+        otp,
+        otpExpiry: new Date(Date.now() + 10 * 60 * 1000),
+        isOtpVerified: false,
+        stationDistrict: stationDistrict || null,
+      });
+      await newUser.save();
+      console.log("✅ Created new user record:", email);
     }
 
-    const newUser = new User({
-      username,
-      email,
-      password: hashedPassword,
-      role,
-      otp,
-      otpExpiry: new Date(Date.now() + 10 * 60 * 1000),
-      isOtpVerified: false,
-      stationDistrict: stationDistrict || null,
+    // Send email (non-blocking but with proper error tracking)
+    const emailPromise = getTransporter().sendMail({
+      from: process.env.EMAIL_FROM || process.env.EMAIL_USER,
+      to: email,
+      subject: `CrimeTrack ${role === "admin" ? "Admin" : "Police Officer"} Account Verification`,
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 500px; margin: auto; background: #0B1F3B; color: white; padding: 40px; border-radius: 16px;">
+          <h2 style="color: #00B8D9; margin-bottom: 4px;">CrimeTrack Staff Registration</h2>
+          <p style="color: #9CA3AF; margin-bottom: 24px;">Role: <strong style="color: white;">${role.toUpperCase()}</strong></p>
+          <p>Hello <strong>${username}</strong>,</p>
+          <p>Use the OTP below to complete your ${role} account registration. Valid for <strong>10 minutes</strong>.</p>
+          <div style="font-size: 40px; font-weight: bold; letter-spacing: 12px; margin: 24px 0; color: #1E5EFF; background: white; padding: 16px; border-radius: 12px; text-align: center;">
+            ${otp}
+          </div>
+          <p style="color: #9CA3AF; font-size: 12px;">If you did not initiate this registration, please disregard this email.</p>
+        </div>
+      `,
     });
 
-    await newUser.save();
+    // Track email delivery but don't block response
+    emailPromise
+      .then(info => console.log(`✅ Staff OTP email sent to ${email}:`, info.response))
+      .catch(err => console.error(`❌ Staff OTP email failed for ${email}:`, err.message));
 
+    // Respond immediately after user is saved
+    console.log(`✅ ${role} registration successful, responding to client`);
     res.status(201).json({
-      msg: `${role === "admin" ? "Admin" : "Police officer"} registered. OTP sent to email.`,
+      msg: `${role === "admin" ? "Admin" : "Police officer"} registration initiated. OTP sent to email.`,
     });
   } catch (error) {
-    console.error("registerStaff error:", error);
-    res.status(500).json({ msg: "Server error", error: error.message });
+    console.error("❌ registerStaff error:", error);
+    console.error("Error stack:", error.stack);
+    res.status(500).json({ 
+      msg: "Server error during staff registration", 
+      error: error.message 
+    });
   }
 };
 
@@ -137,72 +147,47 @@ export const register = async (req, res) => {
     const otp = generateOTP();
 
     // Send OTP email
-    try {
-      const info = await getTransporter().sendMail({
-        from: process.env.EMAIL_FROM || process.env.EMAIL_USER,
-        to: email,
-        subject: "Verify your account - OTP",
-        html: `
-          <div style="font-family: Arial, sans-serif; max-width: 400px; margin: auto;">
-            <h2>Email Verification</h2>
-            <p>Hello <strong>${username}</strong>,</p>
-            <p>Use the OTP below to verify your account. It is valid for <strong>10 minutes</strong>.</p>
-            <div style="font-size: 32px; font-weight: bold; letter-spacing: 8px; margin: 20px 0; color: #4F46E5;">
-              ${otp}
-            </div>
-            <p>If you did not request this, please ignore this email.</p>
-          </div>
-        `,
-      });
-      console.log("EMAIL SENT:", info.response);
-    } catch (mailErr) {
-      console.error("EMAIL FAILED:", mailErr);
-      return res.status(500).json({
-        msg: "Failed to send OTP email",
-        error: mailErr.message,
-      });
-    }
-
+    // Create or update user
     if (existingUser) {
-      // Update existing unverified user
       existingUser.username = username;
       existingUser.password = hashedPassword;
       existingUser.otp = otp;
       existingUser.otpExpiry = new Date(Date.now() + 10 * 60 * 1000);
       await existingUser.save();
-
-      return res.status(200).json({
-        msg: 'User already exists but is unverified. A new OTP has been sent to your email.',
-        user: {
-          id: existingUser._id,
-          username: existingUser.username,
-          email: existingUser.email,
-          role: existingUser.role,
-        },
+    } else {
+      const newUser = new User({
+        username,
+        email,
+        password: hashedPassword,
+        role: 'user',
+        otp,
+        otpExpiry: new Date(Date.now() + 10 * 60 * 1000),
+        isOtpVerified: false,
       });
+      await newUser.save();
     }
 
-    // Create new user (unverified)
-    const newUser = new User({
-      username,
-      email,
-      password: hashedPassword,
-      role: 'user',
-      otp,
-      otpExpiry: new Date(Date.now() + 10 * 60 * 1000), // 10 minutes
-      isOtpVerified: false,
-    });
-
-    await newUser.save();
+    // Send OTP email in background
+    getTransporter().sendMail({
+      from: process.env.EMAIL_FROM || process.env.EMAIL_USER,
+      to: email,
+      subject: "Verify your account - OTP",
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 400px; margin: auto;">
+          <h2>Email Verification</h2>
+          <p>Hello <strong>${username}</strong>,</p>
+          <p>Use the OTP below to verify your account. It is valid for <strong>10 minutes</strong>.</p>
+          <div style="font-size: 32px; font-weight: bold; letter-spacing: 8px; margin: 20px 0; color: #4F46E5;">
+            ${otp}
+          </div>
+          <p>If you did not request this, please ignore this email.</p>
+        </div>
+      `,
+    }).then(info => console.log("EMAIL SENT:", info.response))
+      .catch(err => console.error("EMAIL FAILED:", err));
 
     res.status(201).json({
-      msg: 'User registered successfully. OTP sent to email.',
-      user: {
-        id: newUser._id,
-        username: newUser.username,
-        email: newUser.email,
-        role: newUser.role,
-      },
+      msg: 'Registration initiated. OTP sent to email.',
     });
   } catch (error) {
     console.error(error);
@@ -474,4 +459,4 @@ export const updateProfile = async (req, res) => {
     res.status(500).json({ msg: "Server error", error: error.message });
   }
 };
-
+

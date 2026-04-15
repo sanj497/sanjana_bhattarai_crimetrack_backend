@@ -83,6 +83,7 @@ const crimeSchema = new mongoose.Schema(
       admin: { type: Boolean, default: false },
       police: { type: Boolean, default: false },
       reporter: { type: Boolean, default: false },
+      community: { type: Boolean, default: false }, // TRACKS IF A SAFETY/COMMUNITY ALERT WAS ISSUED
     },
   },
   { timestamps: true }

@@ -893,6 +893,9 @@ export const sendManualSafeAlert = async (req, res) => {
         .catch(err => console.error(`❌ Safe Alert email failed: ${citizen.email}`, err.message));
     });
 
+    // 3. Mark crime record with persistent notification flag
+    await Crime.findByIdAndUpdate(crime._id, { "notificationsSent.community": true });
+
     return res.json({
       success: true,
       msg: `Safety broadcast successfully sent to ${citizens.length} citizens.`,
@@ -948,6 +951,9 @@ export const broadcastCommunityAlert = async (req, res) => {
       sendCrimeAlertEmail(user, crime, alertMessage)
         .catch(err => console.error(`❌ Community Alert email failed: ${user.email}`, err.message));
     });
+
+    // 4. Mark crime record with persistent notification flag
+    await Crime.findByIdAndUpdate(crime._id, { "notificationsSent.community": true });
 
     console.log(`📡 Community-wide alert issued for ${crime._id} to ${verifiedUsers.length} users`);
 

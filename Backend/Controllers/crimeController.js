@@ -170,52 +170,31 @@ export const createCrimeReport = async (req, res) => {
         });
       }
 
-      await sendCrimeAlertEmail(req.user, crime, `✅ Your report has been submitted. Nearby citizens have been issued a safe alert, and our admin team is reviewing your record.`)
+      await sendCrimeAlertEmail(req.user, crime, `✅ Your report has been submitted. Our admin team is reviewing your record.`)
         .catch(err => console.error(`❌ Reporter email failed: ${req.user.email}`, err.message));
     } catch (confError) {
       console.error("⚠️ Reporter confirmation failed:", confError.message);
     }
 
     // ═══════════════════════════════════════════════════════════
-    // PROFESSIONAL WORKFLOW: TARGETED BROADCAST NOTIFICATION
+    // PROFESSIONAL WORKFLOW: ADMIN-ONLY BROADCAST (Initial Review)
     // ═══════════════════════════════════════════════════════════
     let adminIds = [];
-    let citizenIds = [];
     try {
-      console.log("🔔 Starting targeted notification broadcast...");
+      console.log("🔔 Notifying administrators of new report...");
       
       // 1. Find all Admins (Always notified)
       const admins = await User.find({ role: "admin", isOtpVerified: true }, "_id email role");
-      
-      // 2. Find NEARBY Citizens (within 5km of the crime)
-      const nearbyCitizens = await User.find({
-        role: "user",
-        isOtpVerified: true,
-        _id: { $ne: req.user._id }, // Don't notify the reporter
-        "stationLocation.coordinates": {
-           $near: {
-             $geometry: { type: "Point", coordinates: [parsedLng, parsedLat] },
-             $maxDistance: 5000 // 5km Radius
-           }
-         }
-      }, "_id email role");
-
       adminIds = admins.map(a => a._id);
-      citizenIds = nearbyCitizens.map(c => c._id);
       
-      console.log(`🎯 Targeted Broadcast: ${admins.length} admins, ${nearbyCitizens.length} nearby citizens contacted.`);
-
       const adminMessage = `🔴 URGENT: New crime report in ${crime.location.address} - "${crime.title}"`;
-      const safeAlertMessage = `🛡️ SAFE ALERT: A ${crime.crimeType} has been reported within 5km of your location. Authorities have been notified. Please stay vigilant and avoid the ${crime.location.address} area if possible.`;
 
-      // 3. In-App Notifications (Bulk) — tagged with recipient type
+      // 2. In-App Notifications (Bulk) — tagged for admin review
       if (adminIds.length) await bulkNotify(adminIds, crime._id, adminMessage, "admin_alert");
-      if (citizenIds.length) await bulkNotify(citizenIds, crime._id, safeAlertMessage, "citizen_alert");
 
-      // 4. Socket.io Real-time Broadcast
+      // 3. Socket.io Real-time Broadcast to Admin Room
       const io = getIO();
       if (io) {
-        // Notify Admins
         io.to("admin_room").emit("new_notification", {
           type: "crime_report",
           crimeId: crime._id,
@@ -225,43 +204,25 @@ export const createCrimeReport = async (req, res) => {
           actionRequired: true,
           timestamp: new Date().toISOString()
         });
-
-        // Notify Nearby Users (Real-time)
-        citizenIds.forEach(id => {
-          io.to(`user_${id}`).emit("new_notification", {
-            type: "safe_alert",
-            crimeId: crime._id,
-            title: "SAFE ALERT",
-            message: safeAlertMessage,
-            priority: "high",
-            timestamp: new Date().toISOString()
-          });
-        });
       }
 
-      // 5. Email Broadcast
+      // 4. Email Broadcast to Admins
       admins.forEach(admin => {
         sendCrimeAlertEmail(admin, crime, adminMessage)
           .catch(err => console.error(`❌ Admin email failed: ${admin.email}`, err.message));
       });
 
-      nearbyCitizens.forEach(citizen => {
-        sendCrimeAlertEmail(citizen, crime, safeAlertMessage)
-          .catch(err => console.error(`❌ Safe Alert email failed: ${citizen.email}`, err.message));
-      });
-
-      console.log("✅ Targeted notifications processed successfully");
+      console.log("✅ Admin notifications processed successfully");
     } catch (notificationError) {
-      console.error("⚠️ Targeted notification failed:", notificationError.message);
+      console.error("⚠️ Admin notification failed:", notificationError.message);
     }
 
     return res.status(201).json({
       success: true,
-      msg: "Crime reported successfully. Admin has been notified immediately.",
+      msg: "Crime reported successfully. Admin has been notified for review.",
       crime,
       notifiedAdmins: adminIds?.length || 0,
       notifiedPolice: 0,
-      notifiedUsers: citizenIds?.length || 0,
     });
   } catch (error) {
     console.error("❌ createCrimeReport error:", error);
@@ -839,5 +800,96 @@ export const getNearbyPolice = async (req, res) => {
   } catch (error) {
     console.error("getNearbyPolice error:", error);
     res.status(500).json({ error: "Failed to find officers" });
+  }
+};
+
+// ─────────────────────────────────────────────────────────────────
+// GET NEARBY CITIZENS (Admin Console Feature)
+// @desc    Find all citizens within radius of a specific crime
+// @route   GET /api/report/:id/nearby-citizens
+// ─────────────────────────────────────────────────────────────────
+export const getNearbyCitizens = async (req, res) => {
+  try {
+    const crime = await Crime.findById(req.params.id);
+    if (!crime) return res.status(404).json({ error: "Case not found" });
+
+    const radius = parseInt(req.query.radius) || 5000; // Default 5km
+    
+    // Find all users with role 'user' near the crime coordinates
+    const nearbyCitizens = await User.find({
+      role: "user",
+      isOtpVerified: true,
+      "stationLocation.coordinates": {
+         $near: {
+           $geometry: { 
+             type: "Point", 
+             coordinates: [crime.location.lng, crime.location.lat] 
+           },
+           $maxDistance: radius
+         }
+      }
+    }).select("username name email stationLocation stationDistrict");
+
+    return res.json({
+      success: true,
+      count: nearbyCitizens.length,
+      citizens: nearbyCitizens
+    });
+  } catch (error) {
+    console.error("getNearbyCitizens error:", error);
+    return res.status(500).json({ error: "Search failed" });
+  }
+};
+
+// ─────────────────────────────────────────────────────────────────
+// SEND MANUAL SAFE ALERT (Admin Manual Action)
+// @desc    Admin manually triggers a SAFE ALERT to specific users or all nearby
+// @route   POST /api/report/:id/broadcast-safe-alert
+// ─────────────────────────────────────────────────────────────────
+export const sendManualSafeAlert = async (req, res) => {
+  try {
+    const { citizenIds, customMessage } = req.body;
+    const crime = await Crime.findById(req.params.id);
+    if (!crime) return res.status(404).json({ error: "Case not found" });
+
+    if (!citizenIds || !citizenIds.length) {
+      return res.status(400).json({ error: "No citizens selected for broadcast." });
+    }
+
+    const safeAlertMessage = customMessage || `🛡️ SAFE ALERT: A ${crime.crimeType} has been reported at ${crime.location.address}. Please stay vigilant and avoid the area if possible. Authorities are investigating.`;
+
+    // 1. Bulk In-App Notifications
+    await bulkNotify(citizenIds, crime._id, safeAlertMessage, "citizen_alert");
+
+    // 2. Real-time Socket Broadcast & Email
+    const io = getIO();
+    const citizens = await User.find({ _id: { $in: citizenIds } }, "email username");
+
+    citizens.forEach(citizen => {
+      // Real-time socket
+      if (io) {
+        io.to(`user_${citizen._id}`).emit("new_notification", {
+          type: "safe_alert",
+          crimeId: crime._id,
+          title: "SAFE ALERT",
+          message: safeAlertMessage,
+          priority: "high",
+          timestamp: new Date().toISOString()
+        });
+      }
+
+      // Email
+      sendCrimeAlertEmail(citizen, crime, safeAlertMessage)
+        .catch(err => console.error(`❌ Safe Alert email failed: ${citizen.email}`, err.message));
+    });
+
+    return res.json({
+      success: true,
+      msg: `Safety broadcast successfully sent to ${citizens.length} citizens.`,
+      notifiedCount: citizens.length
+    });
+  } catch (error) {
+    console.error("sendManualSafeAlert error:", error);
+    return res.status(500).json({ error: "Broadcast failed" });
   }
 };

@@ -15,7 +15,9 @@ import {
   getNearbyReports,
   getDashboardStats,
   getCrimeById,
-  getNearbyPolice
+  getNearbyPolice,
+  getNearbyCitizens,
+  sendManualSafeAlert
 } from "../Controllers/crimeController.js";
 
 const router = express.Router();
@@ -49,6 +51,8 @@ router.put("/:id/status",            authMiddleware, adminMiddleware,      updat
 router.post("/:id/verify",    authMiddleware, adminMiddleware,      verifyCrimeReport);
 router.post("/:id/forward",   authMiddleware, adminMiddleware,      forwardToPolice);
 router.get("/:id/nearby-police", authMiddleware, adminMiddleware,   getNearbyPolice);
+router.get("/:id/nearby-citizens", authMiddleware, adminMiddleware, getNearbyCitizens);
+router.post("/:id/broadcast-safe-alert", authMiddleware, adminMiddleware, sendManualSafeAlert);
 
 // Community Dashboard
 router.get("/community",      optionalAuth,                        getPublicFeed);

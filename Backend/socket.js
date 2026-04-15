@@ -6,13 +6,28 @@ let io;
 export const initSocket = (server) => {
   io = new Server(server, {
     cors: {
-      origin: [
-        process.env.FRONTEND_URL,
-        "http://localhost:3000",
-        "http://localhost:5173",
-        "http://localhost:5174",
-        "https://sanjana-bhattarai-crimetrack-frontend.vercel.app"
-      ].filter(Boolean),
+      origin: function (origin, callback) {
+        // Allow requests with no origin (mobile apps, curl, etc.)
+        if (!origin) return callback(null, true);
+        
+        const allowed = [
+          "http://localhost:3000",
+          "http://localhost:5173",
+          "http://localhost:5174",
+        ];
+        
+        // Accept any Vercel preview/production URL for this project
+        if (
+          origin.includes("sanjana-bhattarai-crimetrack-frontend") ||
+          origin.includes("vercel.app") ||
+          allowed.includes(origin)
+        ) {
+          return callback(null, true);
+        }
+        
+        console.log("Socket.io CORS rejected origin:", origin);
+        callback(new Error("Not allowed by CORS"));
+      },
       methods: ["GET", "POST"],
       credentials: true
     },

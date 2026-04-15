@@ -446,7 +446,7 @@ export const forwardToPolice = async (req, res) => {
       "workflow.assignedAt": new Date()
     });
 
-    const assignedMessage = `🚨 NEW CASE ASSIGNED: "${crime.title}" - Evidence has been successfully forwarded to your unit. Please review and initiate field investigation immediately.`;
+    const assignedMessage = `🚨 NEW CASE ASSIGNED: "${crime.title}" (${crime.crimeType}) reported at ${crime.location?.address || "specified location"}. Evidence artifact bundle has been successfully synchronized for your unit. Please review intelligence and initiate field investigation immediately.`;
 
     // Create in-app notification for assigned officer (DB + realtime socket)
     await notifyUserCrimeStatus(assignedOfficerId, crime._id, assignedMessage, "police_alert");

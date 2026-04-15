@@ -331,14 +331,14 @@ export const updateReportStatus = async (req, res) => {
         .json({ success: false, message: "Report not found." });
     }
 
-    // ── PROFESSIONAL CLEANUP: Clear alerts if map report is resolved ──
+    // ── PROFESSIONAL CLEANUP: Mark alerts as read if map report is resolved ──
     if (status === "Resolved") {
       try {
-        await Notification.deleteMany({ 
-          crimeId: report._id, 
-          type: "citizen_alert" 
-        });
-        console.log(`🧹 Cleaned up map citizen alerts for resolved report: ${report._id}`);
+        await Notification.updateMany(
+          { crimeId: report._id, type: "citizen_alert", isRead: false },
+          { isRead: true }
+        );
+        console.log(`✅ Marked map citizen alerts as read for resolved report: ${report._id}`);
       } catch (cleanupError) {
         console.error("Map cleanup error:", cleanupError.message);
       }

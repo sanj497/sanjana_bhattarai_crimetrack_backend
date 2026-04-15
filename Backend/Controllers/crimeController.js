@@ -322,14 +322,14 @@ export const updateCrimeStatus = async (req, res) => {
       }
     }
 
-    // ── PROFESSIONAL CLEANUP: Remote alerts if crime is resolved/rejected ──
+    // ── PROFESSIONAL CLEANUP: Mark alerts as read if crime is resolved/rejected ──
     if (status === "Resolved" || status === "Rejected") {
       try {
-        await Notification.deleteMany({ 
-          crimeId: crime._id, 
-          type: "citizen_alert" 
-        });
-        console.log(`🧹 Cleaned up citizen alerts for ${status} crime: ${crime._id}`);
+        await Notification.updateMany(
+          { crimeId: crime._id, type: "citizen_alert", isRead: false },
+          { isRead: true }
+        );
+        console.log(`✅ Marked citizen alerts as read for ${status} crime: ${crime._id}`);
       } catch (cleanupError) {
         console.error("Cleanup error:", cleanupError.message);
       }
@@ -410,14 +410,14 @@ export const verifyCrimeReport = async (req, res) => {
       });
     }
 
-    // ── PROFESSIONAL CLEANUP: If rejected, remove any preliminary alerts ──
+    // ── PROFESSIONAL CLEANUP: If rejected, mark any preliminary alerts as read ──
     if (action === "reject") {
       try {
-        await Notification.deleteMany({ 
-          crimeId: crime._id, 
-          type: "citizen_alert" 
-        });
-        console.log(`🧹 Cleaned up preliminary citizen alerts for rejected crime: ${crime._id}`);
+        await Notification.updateMany(
+          { crimeId: crime._id, type: "citizen_alert", isRead: false },
+          { isRead: true }
+        );
+        console.log(`✅ Marked preliminary citizen alerts as read for rejected crime: ${crime._id}`);
       } catch (cleanupError) {
         console.error("Cleanup error in verification:", cleanupError.message);
       }

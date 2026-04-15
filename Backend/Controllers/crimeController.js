@@ -154,6 +154,8 @@ export const createCrimeReport = async (req, res) => {
     // ═══════════════════════════════════════════════════════════
     // PROFESSIONAL WORKFLOW: TARGETED BROADCAST NOTIFICATION
     // ═══════════════════════════════════════════════════════════
+    let adminIds = [];
+    let citizenIds = [];
     try {
       console.log("🔔 Starting targeted notification broadcast...");
       
@@ -173,8 +175,8 @@ export const createCrimeReport = async (req, res) => {
         }
       }, "_id email role");
 
-      const adminIds = admins.map(a => a._id);
-      const citizenIds = nearbyCitizens.map(c => c._id);
+      adminIds = admins.map(a => a._id);
+      citizenIds = nearbyCitizens.map(c => c._id);
       
       console.log(`🎯 Targeted Broadcast: ${admins.length} admins, ${nearbyCitizens.length} nearby citizens contacted.`);
 

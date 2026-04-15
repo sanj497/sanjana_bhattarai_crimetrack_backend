@@ -129,6 +129,18 @@ export const createCrimeReport = async (req, res) => {
     });
 
     const adminMessage = `🔴 URGENT: New crime report requires verification - "${crime.title}"`;
+    const adminHtml = `
+      <div style="font-family: Arial, sans-serif; padding: 20px; border: 1px solid #ef4444; border-radius: 10px;">
+        <h2 style="color: #b91c1c;">New Critical Report</h2>
+        <p>A new crime report has been submitted and is awaiting your verification.</p>
+        <div style="background: #fef2f2; padding: 15px; border-radius: 8px; margin: 15px 0;">
+          <p><strong>Title:</strong> ${crime.title}</p>
+          <p><strong>Type:</strong> ${crime.crimeType}</p>
+          <p><strong>Location:</strong> ${crime.location.address}</p>
+        </div>
+        <a href="${process.env.FRONTEND_URL}/admin/verify/${crime._id}" style="display: inline-block; background: #2563eb; color: #fff; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Verify Report Now</a>
+      </div>
+    `;
     const generalMessage = `📢 Community Alert: A new crime report has been filed: "${crime.title}" (${crime.crimeType}). Our team is currently verifying the incident.`;
 
     // 2. In-App Notifications (Bulk)
@@ -171,7 +183,8 @@ export const createCrimeReport = async (req, res) => {
     // We send emails to all verified users and admins as requested
     recipients.forEach((recipient) => {
       const msg = recipient.role === "admin" ? adminMessage : generalMessage;
-      sendCrimeAlertEmail(recipient, crime, msg).catch((err) =>
+      const customHtml = recipient.role === "admin" ? adminHtml : null;
+      sendCrimeAlertEmail(recipient, crime, msg, customHtml).catch((err) =>
         console.error(`Email failed for ${recipient.email}:`, err.message)
       );
     });

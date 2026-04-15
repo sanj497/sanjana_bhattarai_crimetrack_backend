@@ -1,7 +1,7 @@
 import Complaint from "../Models/Complaint.js";
 import User from "../Models/usermodel.js";
 import Notification from "../Models/Notification.js";
-import { transporter } from "../utils/email.js";
+import { getTransporter } from "../utils/email.js";
 import { getIO } from "../socket.js";
 
 // ─── USER: Submit a new complaint ───────────────────────────────────────────
@@ -61,7 +61,7 @@ export const submitComplaint = async (req, res) => {
 
       // 3. Email Alert to Admins
       adminUsers.forEach(admin => {
-        transporter.sendMail({
+        getTransporter().sendMail({
           from: `"CrimeTrack Complaints" <${process.env.EMAIL_USER}>`,
           to: admin.email,
           subject: "📬 New User Complaint Submitted",

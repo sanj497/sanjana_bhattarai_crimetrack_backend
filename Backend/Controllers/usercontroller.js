@@ -1,7 +1,7 @@
 import User from '../Models/usermodel.js';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import { transporter } from "../utils/email.js";
+import { getTransporter } from "../utils/email.js";
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -42,7 +42,7 @@ export const register = async (req, res) => {
 
     // Send OTP email
     try {
-      const info = await transporter.sendMail({
+      const info = await getTransporter().sendMail({
         from: process.env.EMAIL_FROM || process.env.EMAIL_USER,
         to: email,
         subject: "Verify your account - OTP",
@@ -271,7 +271,7 @@ export const forgotPassword = async (req, res) => {
 
     // Send Email
     try {
-      await transporter.sendMail({
+      await getTransporter().sendMail({
         from: process.env.EMAIL_FROM || process.env.EMAIL_USER,
         to: email,
         subject: "Password Reset OTP",

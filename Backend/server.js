@@ -1,6 +1,8 @@
+import dotenv from "dotenv";
+dotenv.config();
+
 import express from "express";
 import cors from "cors";
-import dotenv from "dotenv";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import mongoSanitize from "express-mongo-sanitize";
@@ -17,7 +19,6 @@ import complaintRoutes from "./Route/Complaintroutes.js";
 import emergencyRoutes from "./Route/emergencyRoutes.js";
 import { initSocket } from "./socket.js";
 
-dotenv.config();
 connectDB();
 
 const app = express();

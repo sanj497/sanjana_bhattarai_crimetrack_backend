@@ -1,16 +1,25 @@
 import nodemailer from "nodemailer";
 
-// Create transporter using ENV variables with pooling for production efficiency
-export const transporter = nodemailer.createTransport({
-  service: "gmail",
-  pool: true, // Enable connection pooling
-  maxConnections: 5,
-  maxMessages: 100,
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
-  },
-});
+let transporterInstance = null;
+
+export const getTransporter = () => {
+  if (!transporterInstance) {
+    if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+      console.warn("⚠️ Email credentials missing in environment variables!");
+    }
+    transporterInstance = nodemailer.createTransport({
+      service: "gmail",
+      pool: true,
+      maxConnections: 5,
+      maxMessages: 100,
+      auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS,
+      },
+    });
+  }
+  return transporterInstance;
+};
 
 // Helper for professional email templates
 const getEmailTemplate = (title, crimeType, location, description, priority, crimeId) => {
@@ -74,7 +83,7 @@ const getEmailTemplate = (title, crimeType, location, description, priority, cri
 };
 
 // Send crime alert email (Professional version)
-export const sendCrimeAlertEmail = async (user, crime, customMessage = null) => {
+export const sendCrimeAlertEmail = async (user, crime, customMessage = null, customHtml = null) => {
   try {
     const html = getEmailTemplate(
       crime.title,
@@ -85,12 +94,13 @@ export const sendCrimeAlertEmail = async (user, crime, customMessage = null) => 
       crime._id
     );
 
+    const transporter = getTransporter();
     await transporter.sendMail({
       from: `"Crime Track Security" <${process.env.EMAIL_USER}>`,
       to: user.email,
       subject: `🚨 CRIME ALERT: ${crime.title}`,
-      text: `Crime Alert: ${crime.title} (${crime.crimeType}) reported at ${crime.location?.address}. Priority: ${crime.priority || "Medium"}.`,
-      html: html,
+      text: customMessage || `Crime Alert: ${crime.title} (${crime.crimeType}) reported at ${crime.location?.address}. Priority: ${crime.priority || "Medium"}.`,
+      html: customHtml || html,
     });
 
     console.log(`✅ Professional Alert Email sent to ${user.email}`);
@@ -104,6 +114,7 @@ export const sendSOSEmail = async (guardian, citizen, coords) => {
   try {
     const mapLink = coords.latitude ? `https://www.google.com/maps?q=${coords.latitude},${coords.longitude}` : "#";
     
+    const transporter = getTransporter();
     await transporter.sendMail({
       from: `"CrimeTrack Emergency" <${process.env.EMAIL_USER}>`,
       to: guardian.email,

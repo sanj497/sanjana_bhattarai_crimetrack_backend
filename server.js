@@ -48,7 +48,9 @@ app.use(cors({
     // Allow requests with no origin (like mobile apps or curl requests)
     if (!origin) return callback(null, true);
     
-    if (allowedOrigins.indexOf(origin) !== -1) {
+    const isVercel = origin.endsWith(".vercel.app") && origin.includes("sanjana-bhattarai-crimetrack");
+    
+    if (allowedOrigins.indexOf(origin) !== -1 || isVercel) {
       callback(null, true);
     } else {
       console.warn(`❌ CORS blocked origin: ${origin}`);

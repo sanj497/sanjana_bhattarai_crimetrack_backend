@@ -136,20 +136,33 @@ export const createCrimeReport = async (req, res) => {
         address: String(address).trim(), 
         lat: parsedLat, 
         lng: parsedLng,
-        coordinates: [parsedLng, parsedLat] 
-      },
-      evidence,
-      // Set priority based on crime type
-      priority: getPriorityFromCrimeType(crimeType),
-      // Initial status history entry
-      statusHistory: [{
-        status: "Pending",
-        changedBy: req.user._id,
-        notes: "Report submitted by citizen"
-      }]
-    });
+           console.log("✅ Crime report saved to database:", crime._id);
 
-    console.log("✅ Crime report saved to database:", crime._id);
+    // ── 1. IMMEDIATE REPORTER CONFIRMATION ────────────────────────────
+    const reporterMessage = "✅ Your report has been submitted. Our admin team is reviewing your record.";
+    try {
+      await Notification.create({
+        userId: req.user._id,
+        crimeId: crime._id,
+        message: reporterMessage,
+        type: "personal",
+        expiresAt: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000)
+      });
+      
+      const io = getIO();
+      if (io) {
+        io.to(`user_${req.user._id}`).emit("new_notification", {
+          type: "report_confirmation",
+          crimeId: crime._id,
+          message: reporterMessage,
+          timestamp: new Date().toISOString()
+        });
+      }
+
+      await sendCrimeAlertEmail(req.user, crime, `✅ Your report has been submitted. Nearby citizens have been issued a safe alert, and our admin team is reviewing your record.`);
+    } catch (confError) {
+      console.error("⚠️ Reporter confirmation failed:", confError.message);
+    }
 
     // ═══════════════════════════════════════════════════════════
     // PROFESSIONAL WORKFLOW: TARGETED BROADCAST NOTIFICATION
@@ -172,7 +185,7 @@ export const createCrimeReport = async (req, res) => {
              $geometry: { type: "Point", coordinates: [parsedLng, parsedLat] },
              $maxDistance: 5000 // 5km Radius
            }
-        }
+         }
       }, "_id email role");
 
       adminIds = admins.map(a => a._id);
@@ -224,28 +237,6 @@ export const createCrimeReport = async (req, res) => {
         sendCrimeAlertEmail(citizen, crime, safeAlertMessage)
           .catch(err => console.error(`❌ Safe Alert email failed: ${citizen.email}`, err.message));
       });
-
-      // 6. Confirmation to Reporter (In-App + Socket + Email)
-      const reporterMessage = "✅ Your report has been submitted. Our admin team is reviewing your record.";
-      await Notification.create({
-        userId: req.user._id,
-        crimeId: crime._id,
-        message: reporterMessage,
-        type: "personal",
-        expiresAt: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000)
-      });
-      
-      if (io) {
-        io.to(`user_${req.user._id}`).emit("new_notification", {
-          type: "report_confirmation",
-          crimeId: crime._id,
-          message: reporterMessage,
-          timestamp: new Date().toISOString()
-        });
-      }
-
-      sendCrimeAlertEmail(req.user, crime, `✅ Your report has been submitted. Nearby citizens have been issued a safe alert, and our admin team is reviewing your record.`)
-        .catch(err => console.error(`❌ Reporter email failed: ${req.user.email}`, err.message));
 
       console.log("✅ Targeted notifications processed successfully");
     } catch (notificationError) {

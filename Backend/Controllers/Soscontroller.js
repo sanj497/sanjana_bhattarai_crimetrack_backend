@@ -42,11 +42,9 @@ export const sendSOS = async (req, res) => {
       
       // Send to police room with high priority
       io.to("police_room").emit("critical_sos_alert", alertData);
-      io.to("admin_room").emit("critical_sos_alert", alertData);
       
       // Also send general notification for backup systems
       io.to("police_room").emit("new_sos_alert", alertData);
-      io.to("admin_room").emit("new_sos_alert", alertData);
       
       console.log(` CRITICAL SOS ALERT: User ${req.user?.name || 'Anonymous'} at ${latitude}, ${longitude}`);
     }

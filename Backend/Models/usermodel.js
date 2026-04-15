@@ -42,6 +42,15 @@ const userSchema = new mongoose.Schema(
       type: String,
       default: null,
     },
+    stationLocation: {
+      lat: { type: Number, default: null },
+      lng: { type: Number, default: null },
+      coordinates: {
+        type: [Number], // [longitude, latitude]
+        default: undefined,
+        index: "2dsphere",
+      },
+    },
     policeVerification: {
       status: {
         type: String,
@@ -51,6 +60,8 @@ const userSchema = new mongoose.Schema(
       badgeNumber: { type: String, default: null },
       department: { type: String, default: null },
       stationDistrict: { type: String, default: null },
+      stationLat: { type: Number, default: null },
+      stationLng: { type: Number, default: null },
       appliedAt: { type: Date, default: null },
       reviewedAt: { type: Date, default: null },
       reviewedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },

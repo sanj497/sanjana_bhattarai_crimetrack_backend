@@ -139,7 +139,17 @@ export const registerStaff = async (req, res) => {
 ========================= */
 export const register = async (req, res) => {
   try {
-    const { username, email, password, role = "user", stationDistrict, badgeNumber, department } = req.body;
+    const {
+      username,
+      email,
+      password,
+      role = "user",
+      stationDistrict,
+      badgeNumber,
+      department,
+      stationLat,
+      stationLng,
+    } = req.body;
 
     if (!["user", "police"].includes(role)) {
       return res.status(400).json({ msg: "Invalid role selected." });
@@ -150,8 +160,20 @@ export const register = async (req, res) => {
       return res.status(400).json({ msg: 'All fields are required' });
     }
 
-    if (role === "police" && (!stationDistrict || !badgeNumber || !department)) {
-      return res.status(400).json({ msg: "Station district, badge number, and department are required for police registration." });
+    if (role === "police" && (!stationDistrict || !badgeNumber || !department || stationLat === undefined || stationLng === undefined)) {
+      return res.status(400).json({ msg: "Station district, badge number, department, and station coordinates are required for police registration." });
+    }
+
+    const parsedStationLat = stationLat !== undefined ? Number(stationLat) : null;
+    const parsedStationLng = stationLng !== undefined ? Number(stationLng) : null;
+    const hasValidStationCoordinates =
+      parsedStationLat !== null &&
+      parsedStationLng !== null &&
+      Number.isFinite(parsedStationLat) &&
+      Number.isFinite(parsedStationLng);
+
+    if (role === "police" && !hasValidStationCoordinates) {
+      return res.status(400).json({ msg: "Valid station latitude and longitude are required for police registration." });
     }
 
     // Check if user already exists
@@ -176,11 +198,18 @@ export const register = async (req, res) => {
       if (role === "police") {
         existingUser.role = "user";
         existingUser.stationDistrict = stationDistrict;
+        existingUser.stationLocation = {
+          lat: parsedStationLat,
+          lng: parsedStationLng,
+          coordinates: [parsedStationLng, parsedStationLat],
+        };
         existingUser.policeVerification = {
           status: "pending",
           badgeNumber,
           department,
           stationDistrict,
+          stationLat: parsedStationLat,
+          stationLng: parsedStationLng,
           appliedAt: new Date(),
           reviewedAt: null,
           reviewedBy: null,
@@ -209,12 +238,24 @@ export const register = async (req, res) => {
         otpExpiry: new Date(Date.now() + 10 * 60 * 1000),
         isOtpVerified: false,
         stationDistrict: role === "police" ? stationDistrict : null,
+        stationLocation: role === "police"
+          ? {
+              lat: parsedStationLat,
+              lng: parsedStationLng,
+              coordinates: [parsedStationLng, parsedStationLat],
+            }
+          : {
+              lat: null,
+              lng: null,
+            },
         policeVerification: role === "police"
           ? {
               status: "pending",
               badgeNumber,
               department,
               stationDistrict,
+              stationLat: parsedStationLat,
+              stationLng: parsedStationLng,
               appliedAt: new Date(),
               reviewedAt: null,
               reviewedBy: null,
@@ -225,6 +266,8 @@ export const register = async (req, res) => {
               badgeNumber: null,
               department: null,
               stationDistrict: null,
+              stationLat: null,
+              stationLng: null,
               appliedAt: null,
               reviewedAt: null,
               reviewedBy: null,
@@ -419,6 +462,15 @@ export const verifyPoliceApplication = async (req, res) => {
     if (action === "approve") {
       user.role = "police";
       user.stationDistrict = user.policeVerification?.stationDistrict || user.stationDistrict;
+      const approvedLat = Number(user.policeVerification?.stationLat);
+      const approvedLng = Number(user.policeVerification?.stationLng);
+      if (Number.isFinite(approvedLat) && Number.isFinite(approvedLng)) {
+        user.stationLocation = {
+          lat: approvedLat,
+          lng: approvedLng,
+          coordinates: [approvedLng, approvedLat],
+        };
+      }
       user.policeVerification.status = "approved";
     } else {
       user.role = "user";

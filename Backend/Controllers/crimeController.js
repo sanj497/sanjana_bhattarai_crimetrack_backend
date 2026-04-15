@@ -45,6 +45,28 @@ const getPriorityFromCrimeType = (crimeType) => {
   return "Medium"; // Default
 };
 
+const toRadians = (degrees) => (degrees * Math.PI) / 180;
+
+const haversineDistanceKm = (lat1, lng1, lat2, lng2) => {
+  const earthRadiusKm = 6371;
+  const dLat = toRadians(lat2 - lat1);
+  const dLng = toRadians(lng2 - lng1);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRadians(lat1)) *
+      Math.cos(toRadians(lat2)) *
+      Math.sin(dLng / 2) *
+      Math.sin(dLng / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return earthRadiusKm * c;
+};
+
+const formatDistance = (distanceKm) => {
+  if (!Number.isFinite(distanceKm)) return "Distance unavailable";
+  if (distanceKm < 1) return `${Math.round(distanceKm * 1000)} m`;
+  return `${distanceKm.toFixed(2)} km`;
+};
+
 // ─────────────────────────────────────────────────────────────────
 // CREATE CRIME REPORT
 // ─────────────────────────────────────────────────────────────────
@@ -132,7 +154,6 @@ export const createCrimeReport = async (req, res) => {
     // PROFESSIONAL WORKFLOW: IMMEDIATE BROADCAST NOTIFICATION
     // ═══════════════════════════════════════════════════════════
     let adminIds = [];
-    let policeIds = [];
     let citizenIds = [];
 
     try {
@@ -148,8 +169,7 @@ export const createCrimeReport = async (req, res) => {
 
       allStakeholders.forEach(u => {
         if (u.role === "admin") adminIds.push(u._id);
-        else if (u.role === "police") policeIds.push(u._id);
-        else citizenIds.push(u._id);
+        else if (u.role === "user") citizenIds.push(u._id);
 
         // Add to email list (don't send to the reporter)
         if (u._id.toString() !== req.user._id.toString()) {
@@ -157,7 +177,7 @@ export const createCrimeReport = async (req, res) => {
         }
       });
 
-      console.log(`👥 Found ${allStakeholders.length} stakeholders: ${adminIds.length} admins, ${policeIds.length} police, ${citizenIds.length} citizens`);
+      console.log(`👥 Found ${allStakeholders.length} stakeholders: ${adminIds.length} admins, ${citizenIds.length} citizens`);
 
       const adminMessage = `🔴 URGENT: New crime report requires verification - "${crime.title}"`;
       const adminHtml = `
@@ -177,7 +197,6 @@ export const createCrimeReport = async (req, res) => {
       // 2. In-App Notifications (Bulk)
       console.log("📱 Creating in-app notifications...");
       if (adminIds.length) await bulkNotify(adminIds, crime._id, adminMessage);
-      if (policeIds.length) await bulkNotify(policeIds, crime._id, `📋 New verified report pending: ${crime.title}`);
       if (citizenIds.length) await bulkNotify(citizenIds, crime._id, generalMessage);
       console.log("✅ In-app notifications created");
 
@@ -196,15 +215,6 @@ export const createCrimeReport = async (req, res) => {
           timestamp: new Date().toISOString()
         });
 
-        // Notify Police Room
-        io.to("police_room").emit("new_notification", {
-          type: "crime_info",
-          crimeId: crime._id,
-          title: crime.title,
-          message: "New report submitted",
-          timestamp: new Date().toISOString()
-        });
-
         // Notify General Room (Optional awareness)
         io.emit("new_public_alert", {
           title: crime.title,
@@ -215,7 +225,7 @@ export const createCrimeReport = async (req, res) => {
       }
 
       // 4. Production-Level Email Broadcast (Non-blocking)
-      console.log(`📧 Sending email notifications to ${recipients.length} users (${adminIds.length} admins, ${policeIds.length} police, ${citizenIds.length} citizens)`);
+      console.log(`📧 Sending email notifications to ${recipients.length} users (${adminIds.length} admins, ${citizenIds.length} citizens)`);
       
       recipients.forEach((recipient) => {
         const msg = recipient.role === "admin" ? adminMessage : generalMessage;
@@ -242,7 +252,7 @@ export const createCrimeReport = async (req, res) => {
       msg: "Crime reported successfully. Admin has been notified immediately.",
       crime,
       notifiedAdmins: adminIds?.length || 0,
-      notifiedPolice: policeIds?.length || 0,
+      notifiedPolice: 0,
       notifiedUsers: citizenIds?.length || 0,
     });
   } catch (error) {
@@ -398,6 +408,11 @@ export const verifyCrimeReport = async (req, res) => {
 // ─────────────────────────────────────────────────────────────────
 export const forwardToPolice = async (req, res) => {
   try {
+    const { assignedOfficerId } = req.body;
+    if (!assignedOfficerId) {
+      return res.status(400).json({ error: "assignedOfficerId is required to forward a case to police." });
+    }
+
     const crime = await Crime.findByIdAndUpdate(
       req.params.id,
       {
@@ -429,43 +444,27 @@ export const forwardToPolice = async (req, res) => {
     }
 
     // 2. Real-time notification to POLICE (urgent - new case assigned)
-    const io = getIO();
-    const assignedOfficerId = req.body.assignedOfficerId;
+    await Crime.findByIdAndUpdate(crime._id, {
+      "workflow.assignedToOfficer": assignedOfficerId,
+      "workflow.assignedAt": new Date()
+    });
 
-    if (assignedOfficerId) {
-      // Specifically update the assigned officer in the workflow
-      await Crime.findByIdAndUpdate(crime._id, {
-        "workflow.assignedToOfficer": assignedOfficerId,
-        "workflow.assignedAt": new Date()
-      });
+    const assignedMessage = `🚨 NEW CASE ASSIGNED: "${crime.title}" - Evidence has been successfully forwarded to your unit. Please review the details and initiate field investigation immediately.`;
 
-      const assignedMessage = `🚨 NEW CASE ASSIGNED: "${crime.title}" - Evidence has been successfully forwarded to your unit. Please review the details and initiate field investigation immediately.`;
+    // Create in-app notification for assigned officer (DB + realtime socket)
+    await notifyUserCrimeStatus(assignedOfficerId, crime._id, assignedMessage);
 
-      // Create in-app notification for assigned officer (DB + realtime socket)
-      await notifyUserCrimeStatus(assignedOfficerId, crime._id, assignedMessage);
-
-      // 3. Email notification ONLY to the assigned (nearest/selected) officer
-      const officer = await User.findById(assignedOfficerId).select("email username");
-      if (officer && officer.email) {
-        sendCrimeAlertEmail(officer, crime, assignedMessage).catch(err => 
-          console.error(`Email failed for officer ${officer.email}:`, err.message)
-        );
-      }
+    // 3. Email notification ONLY to the assigned (nearest/selected) officer
+    const officer = await User.findById(assignedOfficerId).select("email username");
+    if (officer && officer.email) {
+      sendCrimeAlertEmail(officer, crime, assignedMessage).catch(err => 
+        console.error(`Email failed for officer ${officer.email}:`, err.message)
+      );
     }
 
-    if (io) {
-      // Also notify General Police Room for awareness
-      io.to("police_room").emit("new_notification", {
-        type: "crime_forwarded",
-        crimeId: crime._id,
-        title: crime.title,
-        crimeType: crime.crimeType,
-        location: crime.location.address,
-        status: "ForwardedToPolice",
-        message: `📋 New case forwarded for ${assignedOfficerId ? "specific assignment" : "general review"}: "${crime.title}"`,
-        timestamp: new Date().toISOString()
-      });
+    const io = getIO();
 
+    if (io) {
       // Also notify admins that forwarding is complete
       io.to("admin_room").emit("new_notification", {
         type: "crime_forwarded_complete",
@@ -493,7 +492,15 @@ export const forwardToPolice = async (req, res) => {
 // ─────────────────────────────────────────────────────────────────
 export const getAllCrimes = async (req, res) => {
   try {
-    const crimes = await Crime.find({}).populate("userId", "email role username");
+    let query = {};
+    if (req.user?.role === "police") {
+      query = { "workflow.assignedToOfficer": req.user._id };
+    }
+
+    const crimes = await Crime.find(query)
+      .populate("userId", "email role username")
+      .populate("workflow.assignedToOfficer", "username email stationDistrict")
+      .sort({ createdAt: -1 });
     return res.json({ success: true, crimes });
   } catch (error) {
     console.error("getAllCrimes error:", error);
@@ -744,26 +751,54 @@ export const getNearbyPolice = async (req, res) => {
     const crime = await Crime.findById(req.params.id);
     if (!crime) return res.status(404).json({ error: "Case not found" });
 
-    const caseAddress = crime.location?.address || "";
+    const caseLat = Number(crime.location?.lat);
+    const caseLng = Number(crime.location?.lng);
+    const hasCaseCoordinates = Number.isFinite(caseLat) && Number.isFinite(caseLng);
     
     // Find all police officers
     const policeOfficers = await User.find({ 
       role: "police",
-      isOtpVerified: true 
-    }).select("username name email stationDistrict phone");
+      isOtpVerified: true,
+      $or: [
+        { "policeVerification.status": "approved" },
+        { policeVerification: { $exists: false } },
+        { "policeVerification.status": { $in: [null, "none"] } },
+      ],
+    }).select("username name email stationDistrict stationLocation");
 
-    // Filter by matching district/location mentioned in address
-    const matchedPolice = policeOfficers.filter(police => {
-      if (!police.stationDistrict) return false;
-      const district = police.stationDistrict.toLowerCase();
-      const address = caseAddress.toLowerCase();
-      return address.includes(district) || district.includes(address);
-    });
+    const policeWithDistances = policeOfficers
+      .map((police) => {
+        const stationLat = Number(police.stationLocation?.lat);
+        const stationLng = Number(police.stationLocation?.lng);
+        const hasStationCoordinates =
+          Number.isFinite(stationLat) && Number.isFinite(stationLng);
+
+        if (!hasCaseCoordinates || !hasStationCoordinates) {
+          return {
+            ...police.toObject(),
+            distanceKm: null,
+            distanceText: "Distance unavailable",
+          };
+        }
+
+        const distanceKm = haversineDistanceKm(caseLat, caseLng, stationLat, stationLng);
+        return {
+          ...police.toObject(),
+          distanceKm,
+          distanceText: formatDistance(distanceKm),
+        };
+      })
+      .sort((a, b) => {
+        if (a.distanceKm === null && b.distanceKm === null) return 0;
+        if (a.distanceKm === null) return 1;
+        if (b.distanceKm === null) return -1;
+        return a.distanceKm - b.distanceKm;
+      });
 
     res.json({
       success: true,
-      count: matchedPolice.length,
-      policeOfficers: matchedPolice.length > 0 ? matchedPolice : policeOfficers.slice(0, 5) // Fallback to some police if no match
+      count: policeWithDistances.length,
+      policeOfficers: policeWithDistances.slice(0, 10),
     });
   } catch (error) {
     console.error("getNearbyPolice error:", error);

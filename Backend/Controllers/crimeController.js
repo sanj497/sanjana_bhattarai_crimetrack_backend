@@ -446,15 +446,15 @@ export const forwardToPolice = async (req, res) => {
       "workflow.assignedAt": new Date()
     });
 
-    const assignedMessage = `🚨 NEW CASE ASSIGNED: "${crime.title}" - Evidence has been successfully forwarded to your unit. Please review the details and initiate field investigation immediately.`;
+    const assignedMessage = `🚨 NEW CASE ASSIGNED: "${crime.title}" - Evidence has been successfully forwarded to your unit. Please review and initiate field investigation immediately.`;
 
     // Create in-app notification for assigned officer (DB + realtime socket)
-    await notifyUserCrimeStatus(assignedOfficerId, crime._id, assignedMessage);
+    await notifyUserCrimeStatus(assignedOfficerId, crime._id, assignedMessage, "police_alert");
 
-    // 3. Email notification ONLY to the assigned (nearest/selected) officer
+    // 3. Email notification ONLY to the assigned officer
     const officer = await User.findById(assignedOfficerId).select("email username");
     if (officer && officer.email) {
-      sendCrimeAlertEmail(officer, crime, assignedMessage).catch(err => 
+      await sendCrimeAlertEmail(officer, crime, assignedMessage).catch(err => 
         console.error(`Email failed for officer ${officer.email}:`, err.message)
       );
     }

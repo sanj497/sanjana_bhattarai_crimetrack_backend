@@ -136,7 +136,18 @@ export const createCrimeReport = async (req, res) => {
         address: String(address).trim(), 
         lat: parsedLat, 
         lng: parsedLng,
-           console.log("✅ Crime report saved to database:", crime._id);
+        coordinates: [parsedLng, parsedLat] 
+      },
+      evidence,
+      priority: getPriorityFromCrimeType(crimeType),
+      statusHistory: [{
+        status: "Pending",
+        changedBy: req.user._id,
+        notes: "Report submitted by citizen"
+      }]
+    });
+
+    console.log("✅ Crime report saved to database:", crime._id);
 
     // ── 1. IMMEDIATE REPORTER CONFIRMATION ────────────────────────────
     const reporterMessage = "✅ Your report has been submitted. Our admin team is reviewing your record.";
@@ -159,7 +170,8 @@ export const createCrimeReport = async (req, res) => {
         });
       }
 
-      await sendCrimeAlertEmail(req.user, crime, `✅ Your report has been submitted. Nearby citizens have been issued a safe alert, and our admin team is reviewing your record.`);
+      await sendCrimeAlertEmail(req.user, crime, `✅ Your report has been submitted. Nearby citizens have been issued a safe alert, and our admin team is reviewing your record.`)
+        .catch(err => console.error(`❌ Reporter email failed: ${req.user.email}`, err.message));
     } catch (confError) {
       console.error("⚠️ Reporter confirmation failed:", confError.message);
     }
@@ -261,7 +273,7 @@ export const createCrimeReport = async (req, res) => {
     });
     return res.status(500).json({ 
       error: "Failed to submit crime report", 
-      details: error.message,
+      details: error.message, 
       type: error.name
     });
   }

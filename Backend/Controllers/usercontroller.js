@@ -32,7 +32,7 @@ const sendOtpEmail = async ({ email, username, subject, html, context }) => {
 ========================= */
 export const registerStaff = async (req, res) => {
   try {
-    const { username, email, password, role, secretKey, stationDistrict, badgeNumber } = req.body;
+    const { username, email, password, role, secretKey, stationDistrict } = req.body;
 
     console.log(`📝 Staff registration attempt - Role: ${role}, Email: ${email}`);
 
@@ -57,7 +57,7 @@ export const registerStaff = async (req, res) => {
     }
 
     if (role === "police" && !stationDistrict) {
-      return res.status(400).json({ msg: "Station district is required for police registration." });
+      return res.status(400).json({ msg: "Station Hub/District is required for police registration." });
     }
 
     // Check existing
@@ -76,7 +76,10 @@ export const registerStaff = async (req, res) => {
       existingUser.role = role;
       existingUser.otp = otp;
       existingUser.otpExpiry = new Date(Date.now() + 10 * 60 * 1000);
-      if (stationDistrict) existingUser.stationDistrict = stationDistrict;
+      if (stationDistrict) {
+          existingUser.stationDistrict = stationDistrict;
+          // Coordinates are now optional during simplified registration
+      }
       await existingUser.save();
       console.log("✅ Updated existing user record:", email);
     } else {
@@ -89,6 +92,8 @@ export const registerStaff = async (req, res) => {
         otpExpiry: new Date(Date.now() + 10 * 60 * 1000),
         isOtpVerified: false,
         stationDistrict: stationDistrict || null,
+        // Default empty location if not provided (simplified UI)
+        stationLocation: { lat: null, lng: null }
       });
       await newUser.save();
       console.log("✅ Created new user record:", email);
@@ -126,7 +131,6 @@ export const registerStaff = async (req, res) => {
     });
   } catch (error) {
     console.error("❌ registerStaff error:", error);
-    console.error("Error stack:", error.stack);
     res.status(500).json({ 
       msg: "Server error during staff registration", 
       error: error.message 
@@ -147,6 +151,7 @@ export const register = async (req, res) => {
       stationDistrict,
       badgeNumber,
       department,
+      // Lat/Lng are now optional to support the minimal UI
       stationLat,
       stationLng,
     } = req.body;
@@ -155,26 +160,24 @@ export const register = async (req, res) => {
       return res.status(400).json({ msg: "Invalid role selected." });
     }
 
-    // Validate input
+    // Validate basic input
     if (!username || !email || !password) {
       return res.status(400).json({ msg: 'All fields are required' });
     }
 
-    if (role === "police" && (!stationDistrict || !badgeNumber || !department || stationLat === undefined || stationLng === undefined)) {
-      return res.status(400).json({ msg: "Station district, badge number, department, and station coordinates are required for police registration." });
+    // Professional validation for Police applicants (Minimal requirement)
+    if (role === "police" && (!stationDistrict || !badgeNumber || !department)) {
+      return res.status(400).json({ msg: "Station district, badge number, and department are required for police registration." });
     }
 
-    const parsedStationLat = stationLat !== undefined ? Number(stationLat) : null;
-    const parsedStationLng = stationLng !== undefined ? Number(stationLng) : null;
+    const parsedStationLat = (stationLat !== undefined && stationLat !== null) ? Number(stationLat) : null;
+    const parsedStationLng = (stationLng !== undefined && stationLng !== null) ? Number(stationLng) : null;
+    
     const hasValidStationCoordinates =
       parsedStationLat !== null &&
       parsedStationLng !== null &&
-      Number.isFinite(parsedStationLat) &&
-      Number.isFinite(parsedStationLng);
-
-    if (role === "police" && !hasValidStationCoordinates) {
-      return res.status(400).json({ msg: "Valid station latitude and longitude are required for police registration." });
-    }
+      !isNaN(parsedStationLat) &&
+      !isNaN(parsedStationLng);
 
     // Check if user already exists
     const existingUser = await User.findOne({ email }).select('+isOtpVerified');
@@ -188,13 +191,13 @@ export const register = async (req, res) => {
     // Generate OTP
     const otp = generateOTP();
 
-    // Send OTP email
     // Create or update user
     if (existingUser) {
       existingUser.username = username;
       existingUser.password = hashedPassword;
       existingUser.otp = otp;
       existingUser.otpExpiry = new Date(Date.now() + 10 * 60 * 1000);
+      
       if (hasValidStationCoordinates) {
         existingUser.stationLocation = {
           lat: parsedStationLat,
@@ -202,8 +205,8 @@ export const register = async (req, res) => {
           coordinates: [parsedStationLng, parsedStationLat],
         };
       }
+      
       if (role === "police") {
-        existingUser.role = "user"; // Kept as user until verified
         existingUser.stationDistrict = stationDistrict;
         existingUser.policeVerification = {
           status: "pending",
@@ -235,21 +238,18 @@ export const register = async (req, res) => {
         username,
         email,
         password: hashedPassword,
-        role: 'user',
+        role: 'user', // Assigned 'user' until verification (if police)
         otp,
         otpExpiry: new Date(Date.now() + 10 * 60 * 1000),
         isOtpVerified: false,
-        stationDistrict: role === "police" ? stationDistrict : null,
+        stationDistrict: stationDistrict || null,
         stationLocation: hasValidStationCoordinates
           ? {
               lat: parsedStationLat,
               lng: parsedStationLng,
               coordinates: [parsedStationLng, parsedStationLat],
             }
-          : {
-              lat: null,
-              lng: null,
-            },
+          : { lat: null, lng: null },
         policeVerification: role === "police"
           ? {
               status: "pending",
@@ -279,6 +279,7 @@ export const register = async (req, res) => {
       await newUser.save();
     }
 
+    // Dispatch OTP
     try {
       await sendOtpEmail({
         email,
@@ -286,30 +287,30 @@ export const register = async (req, res) => {
         subject: role === "police" ? "Verify your police application - OTP" : "Verify your account - OTP",
         context: "User registration",
         html: `
-          <div style="font-family: Arial, sans-serif; max-width: 400px; margin: auto;">
-            <h2>${role === "police" ? "Police Registration Verification" : "Email Verification"}</h2>
+          <div style="font-family: Arial, sans-serif; max-width: 400px; margin: auto; padding: 20px; border: 1px solid #f3f4f6; border-radius: 12px; background: white;">
+            <h2 style="color: #4F46E5;">${role === "police" ? "Officer Verification" : "Email Verification"}</h2>
             <p>Hello <strong>${username}</strong>,</p>
-            <p>Use the OTP below to verify your ${role === "police" ? "police application" : "account"}. It is valid for <strong>10 minutes</strong>.</p>
-            <div style="font-size: 32px; font-weight: bold; letter-spacing: 8px; margin: 20px 0; color: #4F46E5;">
+            <p>Use the OTP below to verify your account. It is valid for <strong>10 minutes</strong>.</p>
+            <div style="font-size: 32px; font-weight: bold; letter-spacing: 8px; margin: 24px 0; color: #4F46E5; text-align: center; background: #EEF2FF; padding: 16px; border-radius: 8px;">
               ${otp}
             </div>
-            ${role === "police" ? "<p>After OTP verification, your profile will be reviewed by an admin before police access is approved.</p>" : ""}
-            <p>If you did not request this, please ignore this email.</p>
+            ${role === "police" ? "<p style='color: #6B7280; font-size: 14px;'>Note: After OTP verification, your badge and credentials will be reviewed by our admin team before full access is granted.</p>" : ""}
+            <p style="color: #9CA3AF; font-size: 12px;">If you did not request this, please ignore this email.</p>
           </div>
         `,
       });
     } catch (mailErr) {
       console.error(`❌ Registration OTP email failed for ${email}:`, mailErr.message);
-      return res.status(500).json({ msg: "Registration saved, but OTP email delivery failed. Please check email configuration and try again." });
+      return res.status(500).json({ msg: "Registration saved, but OTP email delivery failed. Please check configuration." });
     }
 
     res.status(201).json({
       msg: role === "police"
-        ? "Police registration initiated. OTP sent to email. Your profile will be reviewed by admin after verification."
+        ? "Police registration initiated. OTP sent to email. Review starts after verification."
         : 'Registration initiated. OTP sent to email.',
     });
   } catch (error) {
-    console.error(error);
+    console.error("❌ Registration error:", error);
     res.status(500).json({ msg: 'Server error', error: error.message });
   }
 };
@@ -330,7 +331,7 @@ export const verifyOtp = async (req, res) => {
 
     // Check OTP expiry
     if (user.otpExpiry && user.otpExpiry < new Date()) {
-      return res.status(400).json({ msg: 'OTP has expired. Please register again or request a new OTP.' });
+      return res.status(400).json({ msg: 'OTP has expired. Please register again.' });
     }
 
     // Check OTP match
@@ -352,7 +353,7 @@ export const verifyOtp = async (req, res) => {
 };
 
 /* =========================
-   LOGIN
+   LOGIN: Enhanced Multi-Session Safety
 ========================= */
 export const login = async (req, res) => {
   try {
@@ -376,7 +377,7 @@ export const login = async (req, res) => {
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) return res.status(400).json({ msg: 'Invalid credentials' });
 
-    // Generate JWT
+    // Generate JWT (1 hour expiry)
     const token = jwt.sign(
       { userId: user._id, role: user.role },
       JWT_SECRET,
@@ -393,7 +394,7 @@ export const login = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error(error);
+    console.error("❌ Login error:", error);
     res.status(500).json({ msg: 'Server error', error: error.message });
   }
 };
@@ -466,7 +467,7 @@ export const verifyPoliceApplication = async (req, res) => {
       user.stationDistrict = user.policeVerification?.stationDistrict || user.stationDistrict;
       const approvedLat = Number(user.policeVerification?.stationLat);
       const approvedLng = Number(user.policeVerification?.stationLng);
-      if (Number.isFinite(approvedLat) && Number.isFinite(approvedLng)) {
+      if (!isNaN(approvedLat) && !isNaN(approvedLng)) {
         user.stationLocation = {
           lat: approvedLat,
           lng: approvedLng,
@@ -514,28 +515,24 @@ export const forgotPassword = async (req, res) => {
       return res.status(404).json({ msg: "User with this email does not exist" });
     }
 
-    // Generate 6-digit OTP
     const otp = Math.floor(100000 + Math.random() * 900000);
-
-    // Save OTP and expiry (10 mins)
     user.resetPasswordOTP = otp;
     user.resetPasswordOTPExpiry = new Date(Date.now() + 10 * 60 * 1000);
     await user.save();
 
-    // Send Email
     try {
       await getTransporter().sendMail({
         from: process.env.EMAIL_FROM || process.env.EMAIL_USER,
         to: email,
         subject: "Password Reset OTP",
         html: `
-          <div style="font-family: Arial, sans-serif; max-width: 400px; margin: auto; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
+          <div style="font-family: Arial, sans-serif; max-width: 400px; margin: auto; padding: 24px; border: 1px solid #e5e7eb; border-radius: 12px; background: white;">
             <h2 style="color: #4F46E5;">Password Reset</h2>
             <p>You requested a password reset. Use the OTP below to proceed. It is valid for 10 minutes.</p>
-            <div style="font-size: 32px; font-weight: bold; letter-spacing: 8px; margin: 20px 0; color: #4F46E5; text-align: center;">
+            <div style="font-size: 32px; font-weight: bold; letter-spacing: 8px; margin: 24px 0; color: #4F46E5; text-align: center; background: #EEF2FF; padding: 16px; border-radius: 8px;">
               ${otp}
             </div>
-            <p>If you did not request this, please ignore this email.</p>
+            <p style="color: #9CA3AF; font-size: 12px;">If you did not request this, please ignore this email.</p>
           </div>
         `,
       });
@@ -567,26 +564,21 @@ export const resetPassword = async (req, res) => {
       return res.status(404).json({ msg: "User not found" });
     }
 
-    // Check OTP
     if (!user.resetPasswordOTP || user.resetPasswordOTP !== Number(otp)) {
       return res.status(400).json({ msg: "Invalid OTP" });
     }
 
-    // Check Expiry
     if (user.resetPasswordOTPExpiry < new Date()) {
       return res.status(400).json({ msg: "OTP has expired" });
     }
 
-    // Hash new password
     const hashedPassword = await bcrypt.hash(newPassword, 10);
     user.password = hashedPassword;
-
-    // Clear reset fields
     user.resetPasswordOTP = undefined;
     user.resetPasswordOTPExpiry = undefined;
     await user.save();
 
-    res.json({ msg: "Password reset successful! You can now log in with your new password." });
+    res.json({ msg: "Password reset successful! You can now log in." });
   } catch (error) {
     console.error(error);
     res.status(500).json({ msg: "Server error", error: error.message });
@@ -631,4 +623,3 @@ export const updateProfile = async (req, res) => {
     res.status(500).json({ msg: "Server error", error: error.message });
   }
 };
-

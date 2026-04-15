@@ -61,7 +61,7 @@ app.use(cors({
 }));
 
 // Handle preflight requests explicitly
-app.options("*", cors());
+app.options("(.*)", cors());
 
 // Additional CORS headers as fallback
 app.use((req, res, next) => {
@@ -130,7 +130,7 @@ const limiter = rateLimit({
   // Skip rate limiting in development
   skip: (req, res) => process.env.NODE_ENV === "development",
 });
-app.use("/api/", limiter);
+app.use("/api", limiter);
 
 // ── ROUTES ───────────────────────────────────────────────────────
 console.log("📡 Setting up routes...");

@@ -131,6 +131,9 @@ export const createCrimeReport = async (req, res) => {
     // ═══════════════════════════════════════════════════════════
     // PROFESSIONAL WORKFLOW: IMMEDIATE BROADCAST NOTIFICATION
     // ═══════════════════════════════════════════════════════════
+    let adminIds = [];
+    let policeIds = [];
+    let citizenIds = [];
 
     try {
       console.log("🔔 Starting notification broadcast...");
@@ -141,9 +144,6 @@ export const createCrimeReport = async (req, res) => {
         "_id email role"
       );
 
-      const adminIds = [];
-      const policeIds = [];
-      const citizenIds = [];
       const recipients = [];
 
       allStakeholders.forEach(u => {

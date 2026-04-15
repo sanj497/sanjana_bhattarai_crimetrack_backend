@@ -17,6 +17,102 @@ const JWT_SECRET = process.env.JWT_SECRET;
 const generateOTP = () => Math.floor(100000 + Math.random() * 900000);
 
 /* =========================
+   REGISTER STAFF (Admin / Police) — Send OTP
+========================= */
+export const registerStaff = async (req, res) => {
+  try {
+    const { username, email, password, role, secretKey, stationDistrict, badgeNumber } = req.body;
+
+    // Validate role
+    if (!["admin", "police"].includes(role)) {
+      return res.status(400).json({ msg: "Invalid role. Must be admin or police." });
+    }
+
+    // Check secret key for each role
+    const adminSecret = process.env.ADMIN_SECRET_KEY || "ADMIN@2025";
+    const policeSecret = process.env.POLICE_SECRET_KEY || "POLICE@2025";
+
+    const expectedSecret = role === "admin" ? adminSecret : policeSecret;
+    if (secretKey !== expectedSecret) {
+      return res.status(403).json({ msg: `Invalid authorization key for ${role} registration.` });
+    }
+
+    if (!username || !email || !password) {
+      return res.status(400).json({ msg: "All fields are required." });
+    }
+
+    if (role === "police" && !stationDistrict) {
+      return res.status(400).json({ msg: "Station district is required for police registration." });
+    }
+
+    // Check existing
+    const existingUser = await User.findOne({ email }).select("+isOtpVerified");
+    if (existingUser && existingUser.isOtpVerified) {
+      return res.status(400).json({ msg: "An account with this email already exists and is verified." });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const otp = generateOTP();
+
+    // Send OTP email
+    try {
+      await getTransporter().sendMail({
+        from: process.env.EMAIL_FROM || process.env.EMAIL_USER,
+        to: email,
+        subject: `CrimeTrack ${role === "admin" ? "Admin" : "Police Officer"} Account Verification`,
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 500px; margin: auto; background: #0B1F3B; color: white; padding: 40px; border-radius: 16px;">
+            <h2 style="color: #00B8D9; margin-bottom: 4px;">CrimeTrack Staff Registration</h2>
+            <p style="color: #9CA3AF; margin-bottom: 24px;">Role: <strong style="color: white;">${role.toUpperCase()}</strong></p>
+            <p>Hello <strong>${username}</strong>,</p>
+            <p>Use the OTP below to complete your ${role} account registration. Valid for <strong>10 minutes</strong>.</p>
+            <div style="font-size: 40px; font-weight: bold; letter-spacing: 12px; margin: 24px 0; color: #1E5EFF; background: white; padding: 16px; border-radius: 12px; text-align: center;">
+              ${otp}
+            </div>
+            <p style="color: #9CA3AF; font-size: 12px;">If you did not initiate this registration, please disregard this email.</p>
+          </div>
+        `,
+      });
+    } catch (mailErr) {
+      console.error("STAFF EMAIL FAILED:", mailErr);
+      return res.status(500).json({ msg: "Failed to send OTP email.", error: mailErr.message });
+    }
+
+    if (existingUser) {
+      existingUser.username = username;
+      existingUser.password = hashedPassword;
+      existingUser.role = role;
+      existingUser.otp = otp;
+      existingUser.otpExpiry = new Date(Date.now() + 10 * 60 * 1000);
+      if (stationDistrict) existingUser.stationDistrict = stationDistrict;
+      await existingUser.save();
+
+      return res.status(200).json({ msg: "Account exists but unverified. New OTP sent." });
+    }
+
+    const newUser = new User({
+      username,
+      email,
+      password: hashedPassword,
+      role,
+      otp,
+      otpExpiry: new Date(Date.now() + 10 * 60 * 1000),
+      isOtpVerified: false,
+      stationDistrict: stationDistrict || null,
+    });
+
+    await newUser.save();
+
+    res.status(201).json({
+      msg: `${role === "admin" ? "Admin" : "Police officer"} registered. OTP sent to email.`,
+    });
+  } catch (error) {
+    console.error("registerStaff error:", error);
+    res.status(500).json({ msg: "Server error", error: error.message });
+  }
+};
+
+/* =========================
    REGISTER — Send OTP
 ========================= */
 export const register = async (req, res) => {

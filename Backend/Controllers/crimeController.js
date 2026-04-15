@@ -50,6 +50,16 @@ const getPriorityFromCrimeType = (crimeType) => {
 // ─────────────────────────────────────────────────────────────────
 export const createCrimeReport = async (req, res) => {
   try {
+    console.log("📝 Crime report submission started");
+    console.log("📋 Request body:", {
+      title: req.body.title,
+      crimeType: req.body.crimeType,
+      hasDescription: !!req.body.description,
+      hasLocation: !!req.body.location || !!req.body.address,
+      hasFiles: req.files && req.files.length > 0,
+      fileCount: req.files ? req.files.length : 0
+    });
+
     const { isAnonymous, title, description, crimeType, location } = req.body;
 
     // Support both JSON { location: {address,lat,lng} } and flat FormData
@@ -58,24 +68,39 @@ export const createCrimeReport = async (req, res) => {
     const lng = location?.lng ?? req.body.lng;
 
     if (!title || !description || !crimeType) {
+      console.error("❌ Validation failed: Missing required fields");
       return res.status(400).json({ error: "title, description and crimeType are required" });
     }
     if (!address || String(address).trim() === "") {
+      console.error("❌ Validation failed: Missing address");
       return res.status(400).json({ error: "location.address is required" });
     }
 
     const parsedLat = parseFloat(lat);
     const parsedLng = parseFloat(lng);
     if (isNaN(parsedLat) || isNaN(parsedLng)) {
+      console.error("❌ Validation failed: Invalid coordinates", { lat, lng });
       return res.status(400).json({ error: "Valid lat and lng are required" });
     }
+
+    console.log("✅ Validation passed, processing files...");
 
     // ── Upload files to Cloudinary & build evidence ─────────────
     const evidence = [];
     if (req.files && req.files.length > 0) {
-      const uploads = await Promise.all(req.files.map((file) => uploadToCloudinary(file)));
-      evidence.push(...uploads);
+      console.log(`📤 Uploading ${req.files.length} file(s) to Cloudinary...`);
+      try {
+        const uploads = await Promise.all(req.files.map((file) => uploadToCloudinary(file)));
+        evidence.push(...uploads);
+        console.log("✅ File upload successful");
+      } catch (uploadError) {
+        console.error("❌ Cloudinary upload failed:", uploadError.message);
+        // Continue without files instead of failing
+        console.warn("⚠️ Continuing report submission without files");
+      }
     }
+
+    console.log("💾 Saving crime report to database...");
 
     // ── Persist crime with professional workflow ─────────────────
     const crime = await Crime.create({
@@ -101,112 +126,138 @@ export const createCrimeReport = async (req, res) => {
       }]
     });
 
+    console.log("✅ Crime report saved to database:", crime._id);
+
     // ═══════════════════════════════════════════════════════════
     // PROFESSIONAL WORKFLOW: IMMEDIATE BROADCAST NOTIFICATION
     // ═══════════════════════════════════════════════════════════
 
-    // 1. Fetch all stakeholders (Admins, Police, and Citizens)
-    // In production, we fetch them in one query or use a worker queue
-    const allStakeholders = await User.find(
-      { isOtpVerified: true }, // Only verified users
-      "_id email role"
-    );
+    try {
+      console.log("🔔 Starting notification broadcast...");
+      
+      // 1. Fetch all stakeholders (Admins, Police, and Citizens)
+      const allStakeholders = await User.find(
+        { isOtpVerified: true },
+        "_id email role"
+      );
 
-    const adminIds = [];
-    const policeIds = [];
-    const citizenIds = [];
-    const recipients = [];
+      const adminIds = [];
+      const policeIds = [];
+      const citizenIds = [];
+      const recipients = [];
 
-    allStakeholders.forEach(u => {
-      if (u.role === "admin") adminIds.push(u._id);
-      else if (u.role === "police") policeIds.push(u._id);
-      else citizenIds.push(u._id);
+      allStakeholders.forEach(u => {
+        if (u.role === "admin") adminIds.push(u._id);
+        else if (u.role === "police") policeIds.push(u._id);
+        else citizenIds.push(u._id);
 
-      // Add to email list (don't send to the reporter)
-      if (u._id.toString() !== req.user._id.toString()) {
-        recipients.push(u);
-      }
-    });
+        // Add to email list (don't send to the reporter)
+        if (u._id.toString() !== req.user._id.toString()) {
+          recipients.push(u);
+        }
+      });
 
-    const adminMessage = `🔴 URGENT: New crime report requires verification - "${crime.title}"`;
-    const adminHtml = `
-      <div style="font-family: Arial, sans-serif; padding: 20px; border: 1px solid #ef4444; border-radius: 10px;">
-        <h2 style="color: #b91c1c;">New Critical Report</h2>
-        <p>A new crime report has been submitted and is awaiting your verification.</p>
-        <div style="background: #fef2f2; padding: 15px; border-radius: 8px; margin: 15px 0;">
-          <p><strong>Title:</strong> ${crime.title}</p>
-          <p><strong>Type:</strong> ${crime.crimeType}</p>
-          <p><strong>Location:</strong> ${crime.location.address}</p>
+      console.log(`👥 Found ${allStakeholders.length} stakeholders: ${adminIds.length} admins, ${policeIds.length} police, ${citizenIds.length} citizens`);
+
+      const adminMessage = `🔴 URGENT: New crime report requires verification - "${crime.title}"`;
+      const adminHtml = `
+        <div style="font-family: Arial, sans-serif; padding: 20px; border: 1px solid #ef4444; border-radius: 10px;">
+          <h2 style="color: #b91c1c;">New Critical Report</h2>
+          <p>A new crime report has been submitted and is awaiting your verification.</p>
+          <div style="background: #fef2f2; padding: 15px; border-radius: 8px; margin: 15px 0;">
+            <p><strong>Title:</strong> ${crime.title}</p>
+            <p><strong>Type:</strong> ${crime.crimeType}</p>
+            <p><strong>Location:</strong> ${crime.location.address}</p>
+          </div>
+          <a href="${process.env.FRONTEND_URL}/admin/verify/${crime._id}" style="display: inline-block; background: #2563eb; color: #fff; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Verify Report Now</a>
         </div>
-        <a href="${process.env.FRONTEND_URL}/admin/verify/${crime._id}" style="display: inline-block; background: #2563eb; color: #fff; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Verify Report Now</a>
-      </div>
-    `;
-    const generalMessage = `📢 Community Alert: A new crime report has been filed: "${crime.title}" (${crime.crimeType}). Our team is currently verifying the incident.`;
+      `;
+      const generalMessage = `📢 Community Alert: A new crime report has been filed: "${crime.title}" (${crime.crimeType}). Our team is currently verifying the incident.`;
 
-    // 2. In-App Notifications (Bulk)
-    if (adminIds.length) await bulkNotify(adminIds, crime._id, adminMessage);
-    if (policeIds.length) await bulkNotify(policeIds, crime._id, `📋 New verified report pending: ${crime.title}`);
-    if (citizenIds.length) await bulkNotify(citizenIds, crime._id, generalMessage);
+      // 2. In-App Notifications (Bulk)
+      console.log("📱 Creating in-app notifications...");
+      if (adminIds.length) await bulkNotify(adminIds, crime._id, adminMessage);
+      if (policeIds.length) await bulkNotify(policeIds, crime._id, `📋 New verified report pending: ${crime.title}`);
+      if (citizenIds.length) await bulkNotify(citizenIds, crime._id, generalMessage);
+      console.log("✅ In-app notifications created");
 
-    // 3. Socket.io Real-time Broadcast
-    const io = getIO();
-    if (io) {
-      // Notify Admin Room
-      io.to("admin_room").emit("new_notification", {
-        type: "crime_report",
-        crimeId: crime._id,
-        title: crime.title,
-        message: adminMessage,
-        priority: "high",
-        actionRequired: true,
-        timestamp: new Date().toISOString()
+      // 3. Socket.io Real-time Broadcast
+      const io = getIO();
+      if (io) {
+        console.log("📡 Broadcasting via Socket.io...");
+        // Notify Admin Room
+        io.to("admin_room").emit("new_notification", {
+          type: "crime_report",
+          crimeId: crime._id,
+          title: crime.title,
+          message: adminMessage,
+          priority: "high",
+          actionRequired: true,
+          timestamp: new Date().toISOString()
+        });
+
+        // Notify Police Room
+        io.to("police_room").emit("new_notification", {
+          type: "crime_info",
+          crimeId: crime._id,
+          title: crime.title,
+          message: "New report submitted",
+          timestamp: new Date().toISOString()
+        });
+
+        // Notify General Room (Optional awareness)
+        io.emit("new_public_alert", {
+          title: crime.title,
+          type: crime.crimeType,
+          location: crime.location.address
+        });
+        console.log("✅ Socket.io broadcast complete");
+      }
+
+      // 4. Production-Level Email Broadcast (Non-blocking)
+      console.log(`📧 Sending email notifications to ${recipients.length} users (${adminIds.length} admins, ${policeIds.length} police, ${citizenIds.length} citizens)`);
+      
+      recipients.forEach((recipient) => {
+        const msg = recipient.role === "admin" ? adminMessage : generalMessage;
+        const customHtml = recipient.role === "admin" ? adminHtml : null;
+        sendCrimeAlertEmail(recipient, crime, msg, customHtml)
+          .then(() => console.log(`✅ Email sent to ${recipient.email} (${recipient.role})`))
+          .catch((err) => console.error(`❌ Email failed for ${recipient.email}:`, err.message));
       });
 
-      // Notify Police Room
-      io.to("police_room").emit("new_notification", {
-        type: "crime_info",
-        crimeId: crime._id,
-        title: crime.title,
-        message: "New report submitted",
-        timestamp: new Date().toISOString()
-      });
+      // 5. Send Confirmation to Reporter
+      sendCrimeAlertEmail(req.user, crime, "✅ Thank you for your report. Our team has been notified and will verify the details shortly.")
+        .then(() => console.log(`✅ Confirmation email sent to reporter: ${req.user.email}`))
+        .catch((err) => console.error(`❌ Reporter confirmation failed for ${req.user.email}:`, err.message));
 
-      // Notify General Room (Optional awareness)
-      io.emit("new_public_alert", {
-        title: crime.title,
-        type: crime.crimeType,
-        location: crime.location.address
-      });
+      console.log("✅ All notifications processed successfully");
+    } catch (notificationError) {
+      // Don't fail the entire request if notifications fail
+      console.error("⚠️ Notification broadcast failed (non-critical):", notificationError.message);
+      console.error("Stack:", notificationError.stack);
     }
-
-    // 4. Production-Level Email Broadcast (Non-blocking)
-    // We send emails to all verified users and admins as requested
-    console.log(`📧 Sending email notifications to ${recipients.length} users (${adminIds.length} admins, ${policeIds.length} police, ${citizenIds.length} citizens)`);
-    
-    recipients.forEach((recipient) => {
-      const msg = recipient.role === "admin" ? adminMessage : generalMessage;
-      const customHtml = recipient.role === "admin" ? adminHtml : null;
-      sendCrimeAlertEmail(recipient, crime, msg, customHtml)
-        .then(() => console.log(`✅ Email sent to ${recipient.email} (${recipient.role})`))
-        .catch((err) => console.error(`❌ Email failed for ${recipient.email}:`, err.message));
-    });
-
-    // 5. Send Confirmation to Reporter
-    sendCrimeAlertEmail(req.user, crime, "✅ Thank you for your report. Our team has been notified and will verify the details shortly.")
-      .then(() => console.log(`✅ Confirmation email sent to reporter: ${req.user.email}`))
-      .catch((err) => console.error(`❌ Reporter confirmation failed for ${req.user.email}:`, err.message));
 
     return res.status(201).json({
       success: true,
       msg: "Crime reported successfully. Admin has been notified immediately.",
       crime,
-      notifiedAdmins: adminIds.length,
-      notifiedPolice: policeIds.length,
-      notifiedUsers: citizenIds.length,
+      notifiedAdmins: adminIds?.length || 0,
+      notifiedPolice: policeIds?.length || 0,
+      notifiedUsers: citizenIds?.length || 0,
     });
   } catch (error) {
-    console.error("createCrimeReport error:", error);
-    return res.status(500).json({ error: "Server error", details: error.message });
+    console.error("❌ createCrimeReport error:", error);
+    console.error("Error stack:", error.stack);
+    console.error("Error details:", {
+      message: error.message,
+      code: error.code,
+      name: error.name
+    });
+    return res.status(500).json({ 
+      error: "Failed to submit crime report", 
+      details: error.message,
+      type: error.name
+    });
   }
 };
 

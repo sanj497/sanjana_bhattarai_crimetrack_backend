@@ -29,8 +29,10 @@ export const register = async (req, res) => {
     }
 
     // Check if user already exists
-    const existingUser = await User.findOne({ email });
-    if (existingUser) return res.status(400).json({ msg: 'User already exists' });
+    const existingUser = await User.findOne({ email }).select('+isOtpVerified');
+    if (existingUser && existingUser.isOtpVerified) {
+      return res.status(400).json({ msg: 'User already exists and is already verified.' });
+    }
 
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -62,6 +64,25 @@ export const register = async (req, res) => {
       return res.status(500).json({
         msg: "Failed to send OTP email",
         error: mailErr.message,
+      });
+    }
+
+    if (existingUser) {
+      // Update existing unverified user
+      existingUser.username = username;
+      existingUser.password = hashedPassword;
+      existingUser.otp = otp;
+      existingUser.otpExpiry = new Date(Date.now() + 10 * 60 * 1000);
+      await existingUser.save();
+
+      return res.status(200).json({
+        msg: 'User already exists but is unverified. A new OTP has been sent to your email.',
+        user: {
+          id: existingUser._id,
+          username: existingUser.username,
+          email: existingUser.email,
+          role: existingUser.role,
+        },
       });
     }
 

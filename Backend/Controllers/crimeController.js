@@ -379,7 +379,7 @@ export const forwardToPolice = async (req, res) => {
           type: "crime_assigned",
           crimeId: crime._id,
           title: crime.title,
-          message: `🚨 NEW CASE ASSIGNED: "${crime.title}" - Please begin investigation immediately.`,
+          message: `🚨 NEW CASE ASSIGNED: "${crime.title}" - Evidence has been successfully forwarded to your unit. Please review the details and initiate field investigation immediately.`,
           priority: "high",
           timestamp: new Date().toISOString()
         });
@@ -388,7 +388,7 @@ export const forwardToPolice = async (req, res) => {
       // 3. Email notification to the assigned officer
       const officer = await User.findById(assignedOfficerId).select("email username");
       if (officer && officer.email) {
-        sendCrimeAlertEmail(officer, crime, `🚨 NEW CASE ASSIGNED: "${crime.title}" - Please begin investigation immediately.`).catch(err => 
+        sendCrimeAlertEmail(officer, crime, `🚨 NEW CASE ASSIGNED: "${crime.title}" - Evidence has been successfully forwarded to your unit. Please initiate field investigation.`).catch(err => 
           console.error(`Email failed for officer ${officer.email}:`, err.message)
         );
       }

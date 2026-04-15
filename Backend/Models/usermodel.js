@@ -10,10 +10,14 @@ const userSchema = new mongoose.Schema(
       enum: ["user", "admin", "police"],
       default: "user"
     },
-     otp: {
-    type: Number,
-    select: false
-  },
+    otp: {
+      type: Number,
+      select: false
+    },
+    otpExpiry: {
+      type: Date,
+      select: false
+    },
     isOtpVerified: {
       type: Boolean,
       default: false,

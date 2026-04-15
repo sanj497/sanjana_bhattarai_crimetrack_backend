@@ -56,6 +56,8 @@ router.get("/:id/nearby-citizens", authMiddleware, adminMiddleware, getNearbyCit
 router.post("/:id/broadcast-safe-alert", authMiddleware, adminMiddleware, sendManualSafeAlert);
 router.post("/:id/broadcast-community-alert", authMiddleware, adminMiddleware, broadcastCommunityAlert);
 
+router.get("/alert-queue", authMiddleware, adminMiddleware, getAlertQueue);
+
 // Community Dashboard
 router.get("/community",      optionalAuth,                        getPublicFeed);
 router.get("/nearby",         authMiddleware,                      getNearbyReports);

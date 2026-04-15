@@ -967,3 +967,23 @@ export const broadcastCommunityAlert = async (req, res) => {
     return res.status(500).json({ error: "Community broadcast failed" });
   }
 };
+
+// ─────────────────────────────────────────────────────────────────
+// GET ALERT QUEUE (Admin Dashboard Feature)
+// @desc    Find verified crimes that haven't been broadcast to community yet
+// ─────────────────────────────────────────────────────────────────
+export const getAlertQueue = async (req, res) => {
+  try {
+    const queue = await Crime.find({
+      status: "Verified",
+      "notificationsSent.community": false
+    })
+    .sort({ createdAt: -1 })
+    .populate("userId", "username email");
+
+    return res.json({ success: true, count: queue.length, queue });
+  } catch (error) {
+    console.error("getAlertQueue error:", error);
+    res.status(500).json({ error: "Failed to fetch alert queue" });
+  }
+};

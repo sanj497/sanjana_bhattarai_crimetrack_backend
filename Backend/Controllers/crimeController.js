@@ -649,7 +649,7 @@ export const getNearbyReports = async (req, res) => {
     if (!lat || !lng) return res.status(400).json({ error: "Location required" });
 
     const reports = await Crime.find({
-      location: {
+      "location.coordinates": {
         $near: {
           $geometry: { type: "Point", coordinates: [parseFloat(lng), parseFloat(lat)] },
           $maxDistance: parseInt(radius),

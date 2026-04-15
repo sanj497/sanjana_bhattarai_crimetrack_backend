@@ -1,36 +1,53 @@
 import nodemailer from "nodemailer";
 
 let transporterInstance = null;
+let transporterReady = null;
 
 export const getTransporter = () => {
   if (!transporterInstance) {
     if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
-      console.warn("⚠️ Email credentials missing in environment variables!");
-      console.warn("📧 Email functionality will be disabled. Set EMAIL_USER and EMAIL_PASS in .env");
+      throw new Error("Email credentials are missing. Set EMAIL_USER and EMAIL_PASS in backend environment variables.");
     }
-    
-    transporterInstance = nodemailer.createTransport({
-      service: "gmail",
-      pool: true,
-      maxConnections: 5,
-      maxMessages: 100,
-      auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS,
-      },
-    });
-    
-    // Verify connection configuration (non-blocking)
-    transporterInstance.verify(function(error, success) {
-      if (error) {
-        console.error("❌ Email transporter verification failed:", error.message);
-        console.error("📧 Check your EMAIL_USER and EMAIL_PASS environment variables");
-      } else {
+
+    const hasCustomSmtp =
+      process.env.EMAIL_HOST && process.env.EMAIL_PORT && process.env.EMAIL_SECURE !== undefined;
+
+    transporterInstance = nodemailer.createTransport(
+      hasCustomSmtp
+        ? {
+            host: process.env.EMAIL_HOST,
+            port: Number(process.env.EMAIL_PORT),
+            secure: process.env.EMAIL_SECURE === "true",
+            auth: {
+              user: process.env.EMAIL_USER,
+              pass: process.env.EMAIL_PASS,
+            },
+          }
+        : {
+            service: "gmail",
+            auth: {
+              user: process.env.EMAIL_USER,
+              pass: process.env.EMAIL_PASS,
+            },
+          }
+    );
+
+    transporterReady = transporterInstance
+      .verify()
+      .then(() => {
         console.log("✅ Email transporter is ready to send messages");
-      }
-    });
+      })
+      .catch((error) => {
+        console.error("❌ Email transporter verification failed:", error.message);
+        throw error;
+      });
   }
   return transporterInstance;
+};
+
+export const ensureTransporterReady = async () => {
+  getTransporter();
+  await transporterReady;
 };
 
 // Helper for professional email templates

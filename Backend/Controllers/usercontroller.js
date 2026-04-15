@@ -1,7 +1,7 @@
 import User from '../Models/usermodel.js';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import { getTransporter } from "../utils/email.js";
+import { getTransporter, ensureTransporterReady } from "../utils/email.js";
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -15,6 +15,17 @@ const JWT_SECRET = process.env.JWT_SECRET;
    Generate OTP
 ========================= */
 const generateOTP = () => Math.floor(100000 + Math.random() * 900000);
+
+const sendOtpEmail = async ({ email, username, subject, html, context }) => {
+  await ensureTransporterReady();
+  const info = await getTransporter().sendMail({
+    from: process.env.EMAIL_FROM || process.env.EMAIL_USER,
+    to: email,
+    subject,
+    html,
+  });
+  console.log(`✅ ${context} OTP email sent to ${email}:`, info.response);
+};
 
 /* =========================
    REGISTER STAFF (Admin / Police) — Send OTP
@@ -83,29 +94,30 @@ export const registerStaff = async (req, res) => {
       console.log("✅ Created new user record:", email);
     }
 
-    // Send email (non-blocking but with proper error tracking)
-    const emailPromise = getTransporter().sendMail({
-      from: process.env.EMAIL_FROM || process.env.EMAIL_USER,
-      to: email,
-      subject: `CrimeTrack ${role === "admin" ? "Admin" : "Police Officer"} Account Verification`,
-      html: `
-        <div style="font-family: Arial, sans-serif; max-width: 500px; margin: auto; background: #0B1F3B; color: white; padding: 40px; border-radius: 16px;">
-          <h2 style="color: #00B8D9; margin-bottom: 4px;">CrimeTrack Staff Registration</h2>
-          <p style="color: #9CA3AF; margin-bottom: 24px;">Role: <strong style="color: white;">${role.toUpperCase()}</strong></p>
-          <p>Hello <strong>${username}</strong>,</p>
-          <p>Use the OTP below to complete your ${role} account registration. Valid for <strong>10 minutes</strong>.</p>
-          <div style="font-size: 40px; font-weight: bold; letter-spacing: 12px; margin: 24px 0; color: #1E5EFF; background: white; padding: 16px; border-radius: 12px; text-align: center;">
-            ${otp}
+    // Send OTP email and fail request if delivery fails
+    try {
+      await sendOtpEmail({
+        email,
+        username,
+        subject: `CrimeTrack ${role === "admin" ? "Admin" : "Police Officer"} Account Verification`,
+        context: "Staff registration",
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 500px; margin: auto; background: #0B1F3B; color: white; padding: 40px; border-radius: 16px;">
+            <h2 style="color: #00B8D9; margin-bottom: 4px;">CrimeTrack Staff Registration</h2>
+            <p style="color: #9CA3AF; margin-bottom: 24px;">Role: <strong style="color: white;">${role.toUpperCase()}</strong></p>
+            <p>Hello <strong>${username}</strong>,</p>
+            <p>Use the OTP below to complete your ${role} account registration. Valid for <strong>10 minutes</strong>.</p>
+            <div style="font-size: 40px; font-weight: bold; letter-spacing: 12px; margin: 24px 0; color: #1E5EFF; background: white; padding: 16px; border-radius: 12px; text-align: center;">
+              ${otp}
+            </div>
+            <p style="color: #9CA3AF; font-size: 12px;">If you did not initiate this registration, please disregard this email.</p>
           </div>
-          <p style="color: #9CA3AF; font-size: 12px;">If you did not initiate this registration, please disregard this email.</p>
-        </div>
-      `,
-    });
-
-    // Track email delivery but don't block response
-    emailPromise
-      .then(info => console.log(`✅ Staff OTP email sent to ${email}:`, info.response))
-      .catch(err => console.error(`❌ Staff OTP email failed for ${email}:`, err.message));
+        `,
+      });
+    } catch (mailErr) {
+      console.error(`❌ Staff OTP email failed for ${email}:`, mailErr.message);
+      return res.status(500).json({ msg: "Registration saved, but OTP email delivery failed. Please check email configuration and try again." });
+    }
 
     // Respond immediately after user is saved
     console.log(`✅ ${role} registration successful, responding to client`);
@@ -222,25 +234,29 @@ export const register = async (req, res) => {
       await newUser.save();
     }
 
-    // Send OTP email in background
-    getTransporter().sendMail({
-      from: process.env.EMAIL_FROM || process.env.EMAIL_USER,
-      to: email,
-      subject: role === "police" ? "Verify your police application - OTP" : "Verify your account - OTP",
-      html: `
-        <div style="font-family: Arial, sans-serif; max-width: 400px; margin: auto;">
-          <h2>${role === "police" ? "Police Registration Verification" : "Email Verification"}</h2>
-          <p>Hello <strong>${username}</strong>,</p>
-          <p>Use the OTP below to verify your ${role === "police" ? "police application" : "account"}. It is valid for <strong>10 minutes</strong>.</p>
-          <div style="font-size: 32px; font-weight: bold; letter-spacing: 8px; margin: 20px 0; color: #4F46E5;">
-            ${otp}
+    try {
+      await sendOtpEmail({
+        email,
+        username,
+        subject: role === "police" ? "Verify your police application - OTP" : "Verify your account - OTP",
+        context: "User registration",
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 400px; margin: auto;">
+            <h2>${role === "police" ? "Police Registration Verification" : "Email Verification"}</h2>
+            <p>Hello <strong>${username}</strong>,</p>
+            <p>Use the OTP below to verify your ${role === "police" ? "police application" : "account"}. It is valid for <strong>10 minutes</strong>.</p>
+            <div style="font-size: 32px; font-weight: bold; letter-spacing: 8px; margin: 20px 0; color: #4F46E5;">
+              ${otp}
+            </div>
+            ${role === "police" ? "<p>After OTP verification, your profile will be reviewed by an admin before police access is approved.</p>" : ""}
+            <p>If you did not request this, please ignore this email.</p>
           </div>
-          ${role === "police" ? "<p>After OTP verification, your profile will be reviewed by an admin before police access is approved.</p>" : ""}
-          <p>If you did not request this, please ignore this email.</p>
-        </div>
-      `,
-    }).then(info => console.log("EMAIL SENT:", info.response))
-      .catch(err => console.error("EMAIL FAILED:", err));
+        `,
+      });
+    } catch (mailErr) {
+      console.error(`❌ Registration OTP email failed for ${email}:`, mailErr.message);
+      return res.status(500).json({ msg: "Registration saved, but OTP email delivery failed. Please check email configuration and try again." });
+    }
 
     res.status(201).json({
       msg: role === "police"

@@ -51,9 +51,9 @@ router.post("/:id/forward",   authMiddleware, adminMiddleware,      forwardToPol
 router.get("/:id/nearby-police", authMiddleware, adminMiddleware,   getNearbyPolice);
 
 // Community Dashboard
-router.get("/community",      authMiddleware,                      getPublicFeed);
+router.get("/community",      optionalAuth,                        getPublicFeed);
 router.get("/nearby",         authMiddleware,                      getNearbyReports);
 router.post("/:id/responses", authMiddleware,                      addReportInteraction);
-router.get("/:id/responses",  authMiddleware,                      getReportInteractions);
+router.get("/:id/responses",  optionalAuth,                        getReportInteractions);
 
 export default router;

@@ -7,7 +7,8 @@ import axios from "axios";
 
 // Helper function for bulk notifications
 const bulkNotify = async (userIds, crimeId, message, type = "personal") => {
-  const docs = userIds.map((userId) => ({ userId, crimeId, message, type }));
+  const expiresAt = new Date(Date.now() + 5 * 24 * 60 * 60 * 1000); // 5 days
+  const docs = userIds.map((userId) => ({ userId, crimeId, message, type, expiresAt }));
   await Notification.insertMany(docs, { ordered: false });
 };
 
@@ -160,7 +161,8 @@ export const submitCrimeReport = async (req, res) => {
         userId: req.user._id,
         crimeId: report._id,
         message: "✅ Your report has been pinned to the community map. Nearby citizens have been alerted.",
-        type: "personal"
+        type: "personal",
+        expiresAt: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000)
       });
       
       sendCrimeAlertEmail(req.user, {
@@ -327,6 +329,19 @@ export const updateReportStatus = async (req, res) => {
       return res
         .status(404)
         .json({ success: false, message: "Report not found." });
+    }
+
+    // ── PROFESSIONAL CLEANUP: Clear alerts if map report is resolved ──
+    if (status === "Resolved") {
+      try {
+        await Notification.deleteMany({ 
+          crimeId: report._id, 
+          type: "citizen_alert" 
+        });
+        console.log(`🧹 Cleaned up map citizen alerts for resolved report: ${report._id}`);
+      } catch (cleanupError) {
+        console.error("Map cleanup error:", cleanupError.message);
+      }
     }
 
     res.status(200).json({ success: true, data: report });

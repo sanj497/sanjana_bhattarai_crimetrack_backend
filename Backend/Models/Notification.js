@@ -31,6 +31,12 @@ const notificationSchema = new mongoose.Schema({
     type: Boolean,
     default: false,
   },
+  // Auto-expire notifications after 5 days to keep the system clean
+  expiresAt: {
+    type: Date,
+    default: () => new Date(Date.now() + 5 * 24 * 60 * 60 * 1000), // 5 days from now
+    index: { expiresAfterSeconds: 0 }
+  }
 }, { timestamps: true });
 
 export default mongoose.model("Notification", notificationSchema);

@@ -63,6 +63,7 @@ export const notifyUserCrimeStatus = async (userId, crimeId, message, type = "pe
       crimeId,
       message,
       type,
+      expiresAt: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000)
     });
     
     // PUSH VIA SOCKET

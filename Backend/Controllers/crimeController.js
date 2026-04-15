@@ -30,7 +30,8 @@ const notifyByRole = async (role, crimeId, message) => {
 
 // Helper function for bulk notifications
 const bulkNotify = async (userIds, crimeId, message, type = "personal") => {
-  const docs = userIds.map((userId) => ({ userId, crimeId, message, type }));
+  const expiresAt = new Date(Date.now() + 5 * 24 * 60 * 60 * 1000); // 5 days
+  const docs = userIds.map((userId) => ({ userId, crimeId, message, type, expiresAt }));
   await Notification.insertMany(docs, { ordered: false });
 };
 
@@ -229,6 +230,7 @@ export const createCrimeReport = async (req, res) => {
         crimeId: crime._id,
         message: reporterMessage,
         type: "personal",
+        expiresAt: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000)
       });
       
       if (io) {
@@ -320,6 +322,19 @@ export const updateCrimeStatus = async (req, res) => {
       }
     }
 
+    // ── PROFESSIONAL CLEANUP: Remote alerts if crime is resolved/rejected ──
+    if (status === "Resolved" || status === "Rejected") {
+      try {
+        await Notification.deleteMany({ 
+          crimeId: crime._id, 
+          type: "citizen_alert" 
+        });
+        console.log(`🧹 Cleaned up citizen alerts for ${status} crime: ${crime._id}`);
+      } catch (cleanupError) {
+        console.error("Cleanup error:", cleanupError.message);
+      }
+    }
+
     return res.json({ success: true, crime });
   } catch (error) {
     console.error("updateCrimeStatus error:", error);
@@ -384,13 +399,28 @@ export const verifyCrimeReport = async (req, res) => {
         crimeId: crime._id,
         title: crime.title,
         crimeType: crime.crimeType,
-        status: "Verified",
+        status: isApproved ? "Verified" : "Rejected",
         priority: crime.priority?.toLowerCase() || "medium",
-        message: `✅ Crime report verified: "${crime.title}" - Ready to forward to police`,
+        message: isApproved 
+          ? `✅ Crime report verified: "${crime.title}" - Ready to forward to police`
+          : `❌ Crime report rejected: "${crime.title}"`,
         timestamp: new Date().toISOString(),
-        actionRequired: true,
-        nextAction: "forwardToPolice"
+        actionRequired: isApproved,
+        nextAction: isApproved ? "forwardToPolice" : null
       });
+    }
+
+    // ── PROFESSIONAL CLEANUP: If rejected, remove any preliminary alerts ──
+    if (action === "reject") {
+      try {
+        await Notification.deleteMany({ 
+          crimeId: crime._id, 
+          type: "citizen_alert" 
+        });
+        console.log(`🧹 Cleaned up preliminary citizen alerts for rejected crime: ${crime._id}`);
+      } catch (cleanupError) {
+        console.error("Cleanup error in verification:", cleanupError.message);
+      }
     }
 
     return res.json({

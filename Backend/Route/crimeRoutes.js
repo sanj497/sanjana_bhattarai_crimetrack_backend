@@ -18,7 +18,8 @@ import {
   getNearbyPolice,
   getNearbyCitizens,
   sendManualSafeAlert,
-  broadcastCommunityAlert
+  broadcastCommunityAlert,
+  getAlertQueue
 } from "../Controllers/crimeController.js";
 
 const router = express.Router();

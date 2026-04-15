@@ -7,15 +7,17 @@ export const initSocket = (server) => {
   io = new Server(server, {
     cors: {
       origin: [
-        process.env.FRONTEND_URI || "http://localhost:3000",
+        process.env.FRONTEND_URL,
+        "http://localhost:3000",
         "http://localhost:5173",
         "http://localhost:5174",
-        "https://sanjana-bhattarai-crimetrack-frontend.vercel.app",
-        "https://sanjana-bhattarai-crimetrack-frontend-mj2nt0eqc.vercel.app"
-      ],
+        "https://sanjana-bhattarai-crimetrack-frontend.vercel.app"
+      ].filter(Boolean),
       methods: ["GET", "POST"],
       credentials: true
-    }
+    },
+    transports: ["polling", "websocket"],
+    allowEIO3: true
   });
 
   io.on("connection", (socket) => {

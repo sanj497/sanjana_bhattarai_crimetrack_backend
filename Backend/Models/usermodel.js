@@ -42,6 +42,20 @@ const userSchema = new mongoose.Schema(
       type: String,
       default: null,
     },
+    policeVerification: {
+      status: {
+        type: String,
+        enum: ["none", "pending", "approved", "rejected"],
+        default: "none",
+      },
+      badgeNumber: { type: String, default: null },
+      department: { type: String, default: null },
+      stationDistrict: { type: String, default: null },
+      appliedAt: { type: Date, default: null },
+      reviewedAt: { type: Date, default: null },
+      reviewedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+      reviewNote: { type: String, default: "" },
+    },
   },
   { timestamps: true }
 );

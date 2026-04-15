@@ -127,11 +127,19 @@ export const registerStaff = async (req, res) => {
 ========================= */
 export const register = async (req, res) => {
   try {
-    const { username, email, password } = req.body;
+    const { username, email, password, role = "user", stationDistrict, badgeNumber, department } = req.body;
+
+    if (!["user", "police"].includes(role)) {
+      return res.status(400).json({ msg: "Invalid role selected." });
+    }
 
     // Validate input
-    if (!email || !password) {
+    if (!username || !email || !password) {
       return res.status(400).json({ msg: 'All fields are required' });
+    }
+
+    if (role === "police" && (!stationDistrict || !badgeNumber || !department)) {
+      return res.status(400).json({ msg: "Station district, badge number, and department are required for police registration." });
     }
 
     // Check if user already exists
@@ -153,6 +161,31 @@ export const register = async (req, res) => {
       existingUser.password = hashedPassword;
       existingUser.otp = otp;
       existingUser.otpExpiry = new Date(Date.now() + 10 * 60 * 1000);
+      if (role === "police") {
+        existingUser.role = "user";
+        existingUser.stationDistrict = stationDistrict;
+        existingUser.policeVerification = {
+          status: "pending",
+          badgeNumber,
+          department,
+          stationDistrict,
+          appliedAt: new Date(),
+          reviewedAt: null,
+          reviewedBy: null,
+          reviewNote: "",
+        };
+      } else {
+        existingUser.policeVerification = {
+          status: "none",
+          badgeNumber: null,
+          department: null,
+          stationDistrict: null,
+          appliedAt: null,
+          reviewedAt: null,
+          reviewedBy: null,
+          reviewNote: "",
+        };
+      }
       await existingUser.save();
     } else {
       const newUser = new User({
@@ -163,6 +196,28 @@ export const register = async (req, res) => {
         otp,
         otpExpiry: new Date(Date.now() + 10 * 60 * 1000),
         isOtpVerified: false,
+        stationDistrict: role === "police" ? stationDistrict : null,
+        policeVerification: role === "police"
+          ? {
+              status: "pending",
+              badgeNumber,
+              department,
+              stationDistrict,
+              appliedAt: new Date(),
+              reviewedAt: null,
+              reviewedBy: null,
+              reviewNote: "",
+            }
+          : {
+              status: "none",
+              badgeNumber: null,
+              department: null,
+              stationDistrict: null,
+              appliedAt: null,
+              reviewedAt: null,
+              reviewedBy: null,
+              reviewNote: "",
+            },
       });
       await newUser.save();
     }
@@ -171,15 +226,16 @@ export const register = async (req, res) => {
     getTransporter().sendMail({
       from: process.env.EMAIL_FROM || process.env.EMAIL_USER,
       to: email,
-      subject: "Verify your account - OTP",
+      subject: role === "police" ? "Verify your police application - OTP" : "Verify your account - OTP",
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 400px; margin: auto;">
-          <h2>Email Verification</h2>
+          <h2>${role === "police" ? "Police Registration Verification" : "Email Verification"}</h2>
           <p>Hello <strong>${username}</strong>,</p>
-          <p>Use the OTP below to verify your account. It is valid for <strong>10 minutes</strong>.</p>
+          <p>Use the OTP below to verify your ${role === "police" ? "police application" : "account"}. It is valid for <strong>10 minutes</strong>.</p>
           <div style="font-size: 32px; font-weight: bold; letter-spacing: 8px; margin: 20px 0; color: #4F46E5;">
             ${otp}
           </div>
+          ${role === "police" ? "<p>After OTP verification, your profile will be reviewed by an admin before police access is approved.</p>" : ""}
           <p>If you did not request this, please ignore this email.</p>
         </div>
       `,
@@ -187,7 +243,9 @@ export const register = async (req, res) => {
       .catch(err => console.error("EMAIL FAILED:", err));
 
     res.status(201).json({
-      msg: 'Registration initiated. OTP sent to email.',
+      msg: role === "police"
+        ? "Police registration initiated. OTP sent to email. Your profile will be reviewed by admin after verification."
+        : 'Registration initiated. OTP sent to email.',
     });
   } catch (error) {
     console.error(error);
@@ -323,6 +381,50 @@ export const getAllUsers = async (req, res) => {
       msg: "Server error",
       error: error.message,
     });
+  }
+};
+
+export const verifyPoliceApplication = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { action, reviewNote } = req.body;
+
+    if (!["approve", "reject"].includes(action)) {
+      return res.status(400).json({ msg: "Action must be approve or reject." });
+    }
+
+    const user = await User.findById(userId);
+    if (!user) return res.status(404).json({ msg: "User not found" });
+
+    if (user.policeVerification?.status !== "pending") {
+      return res.status(400).json({ msg: "This police application is not pending review." });
+    }
+
+    if (action === "approve") {
+      user.role = "police";
+      user.stationDistrict = user.policeVerification?.stationDistrict || user.stationDistrict;
+      user.policeVerification.status = "approved";
+    } else {
+      user.role = "user";
+      user.policeVerification.status = "rejected";
+    }
+
+    user.policeVerification.reviewedAt = new Date();
+    user.policeVerification.reviewedBy = req.user.userId;
+    user.policeVerification.reviewNote = reviewNote || "";
+    await user.save();
+
+    res.json({
+      msg: action === "approve" ? "Police application approved successfully." : "Police application rejected.",
+      user: {
+        id: user._id,
+        email: user.email,
+        role: user.role,
+        policeVerification: user.policeVerification,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({ msg: "Server error", error: error.message });
   }
 };
 

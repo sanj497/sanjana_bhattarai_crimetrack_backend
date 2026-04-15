@@ -24,7 +24,7 @@ export const submitGuestFeedback = async (req, res) => {
 // Submit feedback (authenticated user)
 export const submitAuthFeedback = async (req, res) => {
   try {
-    const { message, rating } = req.body;
+    const { message, rating, crimeId, policeId } = req.body;
 
     if (!message) {
       return res.status(400).json({ error: "Message is required" });
@@ -34,11 +34,16 @@ export const submitAuthFeedback = async (req, res) => {
       return res.status(400).json({ error: "Rating must be between 1 and 5" });
     }
 
-    const feedback = await Feedback.create({
+    const payload = {
       userId: req.user.id,
       message,
       rating,
-    });
+    };
+
+    if (crimeId) payload.crimeId = crimeId;
+    if (policeId) payload.policeId = policeId;
+
+    const feedback = await Feedback.create(payload);
     res.status(201).json({ success: true, feedback });
   } catch (err) {
     res.status(500).json({ error: "Server error", details: err.message });

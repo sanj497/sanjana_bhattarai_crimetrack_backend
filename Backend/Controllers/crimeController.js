@@ -506,7 +506,9 @@ export const getAllCrimes = async (req, res) => {
 // ─────────────────────────────────────────────────────────────────
 export const getMyCrimes = async (req, res) => {
   try {
-    const crimes = await Crime.find({ userId: req.user._id }).sort({ createdAt: -1 });
+    const crimes = await Crime.find({ userId: req.user._id })
+      .populate("workflow.assignedToOfficer", "username email stationDistrict")
+      .sort({ createdAt: -1 });
     return res.json({ success: true, crimes });
   } catch (error) {
     console.error("getMyCrimes error:", error);

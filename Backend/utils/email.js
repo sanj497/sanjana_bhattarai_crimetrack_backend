@@ -90,7 +90,7 @@ const getEmailTemplate = (crime, customMessage = null) => {
       <!-- Header -->
       <div style="background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); padding: 32px 24px; text-align: center;">
         <h1 style="color: #ffffff; margin: 0; font-size: 24px; font-weight: 800; letter-spacing: -0.025em; display: flex; align-items: center; justify-content: center; gap: 8px;">
-          <span style="font-size: 28px;">🚨</span> CRIME TRACK ALERT
+          <span style="font-size: 28px;">🚨</span> CRIME ALERT
         </h1>
         <p style="color: #94a3b8; margin: 8px 0 0; font-size: 14px;">Real-time public safety update</p>
       </div>
@@ -101,27 +101,12 @@ const getEmailTemplate = (crime, customMessage = null) => {
           ${crime.priority || 'Medium'} Priority Case
         </div>
         
-        <h2 style="color: #111827; margin: 0 0 12px; font-size: 20px; font-weight: 700;">${crime.title}</h2>
-        <p style="color: #4b5563; line-height: 1.6; margin: 0 0 24px; font-size: 15px;">${customMessage || crime.description}</p>
-
-        <!-- Detail Grid -->
-        <div style="background-color: #f8fafc; border-radius: 12px; padding: 20px; margin-bottom: 32px; border: 1px solid #f1f5f9;">
-          <div style="margin-bottom: 16px;">
-            <p style="color: #64748b; font-size: 12px; font-weight: 600; text-transform: uppercase; margin: 0 0 4px;">Incident Type</p>
-            <p style="color: #334155; font-size: 14px; margin: 0; font-weight: 500;">${crime.crimeType}</p>
-          </div>
-          <div style="margin-bottom: 16px;">
-            <p style="color: #64748b; font-size: 12px; font-weight: 600; text-transform: uppercase; margin: 0 0 4px;">Location</p>
-            <p style="color: #334155; font-size: 14px; margin: 0; font-weight: 500;">📍 ${crime.location?.address || "Location shared with authorities"}</p>
-            ${crime.location?.lat ? `<a href="${mapLink}" style="color: #2563eb; font-size: 12px; text-decoration: none; font-weight: 600;">Show on Interactive Map →</a>` : ""}
-          </div>
-          ${evidenceHtml}
-        </div>
+        <p style="color: #4b5563; line-height: 1.6; margin: 0 0 24px; font-size: 15px;">${customMessage}</p>
 
         <!-- Action Button -->
         <div style="text-align: center;">
           <a href="${frontendUrl}/report/${crime._id}" style="display: inline-block; background-color: #2563eb; color: #ffffff; padding: 14px 32px; border-radius: 8px; font-weight: 600; text-decoration: none; font-size: 14px; transition: background-color 0.2s;">
-            View Intelligence Record
+            View Details
           </a>
         </div>
       </div>
@@ -146,7 +131,7 @@ export const sendCrimeAlertEmail = async (user, crime, customMessage = null, cus
     await transporter.sendMail({
       from: `"Crime Track Security" <${process.env.EMAIL_USER}>`,
       to: user.email,
-      subject: `🚨 CRIME ALERT: ${crime.title}`,
+      subject: `🚨 CRIME ALERT`,
       text: customMessage || `Crime Alert: ${crime.title} (${crime.crimeType}) reported at ${crime.location?.address}. Priority: ${crime.priority || "Medium"}.`,
       html: customHtml || html,
     });

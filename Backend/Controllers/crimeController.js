@@ -541,6 +541,53 @@ export const forwardToPolice = async (req, res) => {
       );
     }
 
+    // 4. Send crime alert to nearby citizens
+    try {
+      const citizenAlertMessage = `🚨 Crime Alert: A new incident has been reported in your area. The case has been forwarded to authorities for review. For your safety, stay alert, be cautious while traveling, avoid isolated places, and report any suspicious activity immediately.`;
+      
+      // Find nearby citizens within 10km
+      const nearbyCitizens = await User.find({
+        role: "user",
+        isOtpVerified: true,
+        location: {
+          $near: {
+            $geometry: { type: "Point", coordinates: crime.location.coordinates },
+            $maxDistance: 10000 // 10km
+          }
+        }
+      }).select("_id email username");
+
+      if (nearbyCitizens.length > 0) {
+        // Send notifications to nearby citizens
+        const citizenIds = nearbyCitizens.map(c => c._id);
+        await bulkNotify(citizenIds, crime._id, citizenAlertMessage, "citizen_alert");
+
+        // Send real-time notifications and emails
+        const io = getIO();
+        nearbyCitizens.forEach(citizen => {
+          // Real-time dashboard notification
+          if (io) {
+            io.to(`user_${citizen._id}`).emit("new_notification", {
+              type: "citizen_alert",
+              crimeId: crime._id,
+              title: "Crime Alert",
+              message: citizenAlertMessage,
+              priority: "high",
+              timestamp: new Date().toISOString()
+            });
+          }
+
+          // Email alert
+          sendCrimeAlertEmail(citizen, crime, citizenAlertMessage)
+            .catch(err => console.error(`❌ Citizen alert email failed: ${citizen.email}`, err.message));
+        });
+
+        console.log(`✅ Crime alert sent to ${nearbyCitizens.length} nearby citizens`);
+      }
+    } catch (citizenAlertError) {
+      console.error("⚠️ Citizen alert failed:", citizenAlertError.message);
+    }
+
     const io = getIO();
 
     if (io) {
@@ -1041,7 +1088,7 @@ export const sendManualSafeAlert = async (req, res) => {
       }
     }
 
-    const safeAlertMessage = customMessage || `🛡️ SAFE ALERT: A ${crime.crimeType} has been confirmed at ${crime.location.address}. Please stay vigilant and exercise caution in this area. Authorities are coordinating response.`;
+    const safeAlertMessage = customMessage || `🚨 Crime Alert: A new incident has been reported in your area. The case has been forwarded to authorities for review. For your safety, stay alert, be cautious while traveling, avoid isolated places, and report any suspicious activity immediately.`;
 
     // 2. Bulk Database Notifications
     await bulkNotify(citizenIds, crime._id, safeAlertMessage, "citizen_alert");
@@ -1099,8 +1146,8 @@ export const broadcastCommunityAlert = async (req, res) => {
       return res.status(400).json({ error: "No verified citizens found in database." });
     }
 
-    const alertTitle = `🚨 URGENT CRIME ALERT: ${crime.crimeType}`;
-    const alertMessage = customMessage || `CRITICAL SAFETY ALERT: A ${crime.crimeType} has been confirmed at ${crime.location.address}. This incident is classified as ${crime.priority}. Please stay vigilant and exercise extreme caution in this area.`;
+    const alertTitle = `🚨 CRIME ALERT`;
+    const alertMessage = customMessage || `🚨 Crime Alert: A new incident has been reported in your area. The case has been forwarded to authorities for review. For your safety, stay alert, be cautious while traveling, avoid isolated places, and report any suspicious activity immediately.`;
 
     // 2. Prepare bulk notifications (Database)
     const userIds = verifiedUsers.map(u => u._id);

@@ -571,16 +571,43 @@ export const forwardToPolice = async (req, res) => {
 // ─────────────────────────────────────────────────────────────────
 export const getAllCrimes = async (req, res) => {
   try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+
     let query = {};
     if (req.user?.role === "police") {
       query = { "workflow.assignedToOfficer": req.user._id };
     }
+    
+    // Support server-side filtering
+    if (req.query.status && req.query.status !== "All") {
+      query.status = req.query.status;
+    }
+    
+    // Support server-side searching
+    if (req.query.search) {
+      query.$or = [
+        { title: { $regex: req.query.search, $options: "i" } },
+        { description: { $regex: req.query.search, $options: "i" } }
+      ];
+    }
 
+    const total = await Crime.countDocuments(query);
     const crimes = await Crime.find(query)
       .populate("userId", "email role username")
       .populate("workflow.assignedToOfficer", "username email stationDistrict")
-      .sort({ createdAt: -1 });
-    return res.json({ success: true, crimes });
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit);
+
+    return res.json({ 
+      success: true, 
+      crimes,
+      totalItems: total,
+      totalPages: Math.ceil(total / limit),
+      currentPage: page
+    });
   } catch (error) {
     console.error("getAllCrimes error:", error);
     return res.status(500).json({ error: "Server error", details: error.message });

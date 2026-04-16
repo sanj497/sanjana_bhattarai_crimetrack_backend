@@ -431,10 +431,17 @@ export const updateUserRole = async (req, res) => {
 
 export const getAllUsers = async (req, res) => {
   try {
-    const users = await User.find().select("-password -otp");
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 8;
+    const skip = (page - 1) * limit;
+
+    const total = await User.countDocuments();
+    const users = await User.find().select("-password -otp").skip(skip).limit(limit);
 
     res.json({
-      total: users.length,
+      total: total,
+      totalPages: Math.ceil(total / limit),
+      currentPage: page,
       users,
     });
   } catch (error) {

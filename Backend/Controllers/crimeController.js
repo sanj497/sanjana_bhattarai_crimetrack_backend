@@ -217,11 +217,93 @@ export const createCrimeReport = async (req, res) => {
       console.error("⚠️ Admin notification failed:", notificationError.message);
     }
 
+    // ═══════════════════════════════════════════════════════════
+    // PROFESSIONAL WORKFLOW: COMMUNITY SAFETY ALERT (Nearby Users)
+    // Broadcasts the report to the nearest users for better protection
+    // ═══════════════════════════════════════════════════════════
+    let notifiedCitizens = 0;
+    try {
+      console.log("🔔 Broadcasting safety alert to community nearby users...");
+      
+      if (parsedLat && parsedLng) {
+        // Find nearby citizens (within 5km) for community protection
+        const nearestCitizens = await User.find({
+          role: "user",
+          _id: { $ne: req.user._id },
+          "stationLocation.coordinates": {
+            $near: {
+              $geometry: { type: "Point", coordinates: [parsedLng, parsedLat] },
+              $maxDistance: 5000 // 5km radius
+            }
+          }
+        });
+        
+        notifiedCitizens = nearestCitizens.length;
+        const citizenMessage = `⚠️ COMMUNITY SAFETY ALERT: A ${crime.crimeType} was just reported near your location at ${crime.location.address}. Please stay vigilant and safe.`;
+
+        if (notifiedCitizens > 0) {
+          const citizenIds = nearestCitizens.map(c => c._id);
+          
+          // 1. In-App Notifications
+          await bulkNotify(citizenIds, crime._id, citizenMessage, "citizen_alert");
+          
+          // 2. Real-time Socket.io Broadcast to specific nearby users
+          const io = getIO();
+          if (io) {
+            citizenIds.forEach(id => {
+              io.to(`user_${id}`).emit("new_notification", {
+                type: "community_alert",
+                crimeId: crime._id,
+                title: "Safety Alert",
+                message: citizenMessage,
+                priority: crime.priority,
+                timestamp: new Date().toISOString()
+              });
+            });
+            // Also broad broadcast to users room for the live community feed
+            io.to("users_room").emit("new_notification", {
+              type: "community_alert",
+              crimeId: crime._id,
+              title: "Area Alert",
+              message: `⚠️ New ${crime.crimeType} reported in the community at ${crime.location.address}.`,
+              priority: crime.priority,
+              timestamp: new Date().toISOString()
+            });
+          }
+
+          // 3. Email Broadcast
+          nearestCitizens.forEach(citizen => {
+            if (citizen.email) {
+              sendCrimeAlertEmail(citizen, crime, citizenMessage)
+                .catch(err => console.error(`❌ Citizen email failed: ${citizen.email}`, err.message));
+            }
+          });
+        } else {
+          // Fallback realtime broadcast if no precise users match radius
+          const io = getIO();
+          if (io) {
+            io.to("users_room").emit("new_notification", {
+              type: "community_alert",
+              crimeId: crime._id,
+              title: "Community Safety Alert",
+              message: `⚠️ New ${crime.crimeType} reported at ${crime.location.address}.`,
+              priority: crime.priority,
+              timestamp: new Date().toISOString()
+            });
+          }
+        }
+        console.log(`✅ Community alerts processed: Notified ${notifiedCitizens} nearest users.`);
+      }
+    } catch (communityError) {
+      console.error("⚠️ Community broadcast failed:", communityError.message);
+    }
+
     return res.status(201).json({
       success: true,
-      msg: "Crime reported successfully. Admin has been notified for review.",
+      msg: "Crime reported successfully. Admin and nearest users have been notified for safety.",
       crime,
       notifiedAdmins: adminIds?.length || 0,
+      notifiedCitizens,
       notifiedPolice: 0,
     });
   } catch (error) {

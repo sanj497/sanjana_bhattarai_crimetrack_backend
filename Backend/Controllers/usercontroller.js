@@ -2,6 +2,7 @@ import User from '../Models/usermodel.js';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { getTransporter, ensureTransporterReady } from "../utils/email.js";
+import { uploadToCloudinary } from "../utils/cloudinaryUpload.js";
 
 
 
@@ -390,6 +391,7 @@ export const login = async (req, res) => {
         username: user.username,
         email: user.email,
         role: user.role,
+        profilePicture: user.profilePicture,
       },
     });
   } catch (error) {
@@ -649,6 +651,78 @@ export const deleteUser = async (req, res) => {
     res.json({ msg: "User removed successfully", success: true });
   } catch (error) {
     console.error("deleteUser error:", error);
+    res.status(500).json({ msg: "Server error", error: error.message });
+  }
+};
+
+/* =========================
+   GET USER PROFILE
+ ========================= */
+export const getProfile = async (req, res) => {
+  try {
+    const userId = req.user._id || req.user.userId;
+    const user = await User.findById(userId).select("-password -otp -otpExpiry -isOtpVerified -resetPasswordOTP -resetPasswordOTPExpiry");
+    
+    if (!user) {
+      return res.status(404).json({ msg: "User not found" });
+    }
+
+    res.json({
+      success: true,
+      user: {
+        id: user._id,
+        username: user.username,
+        email: user.email,
+        role: user.role,
+        profilePicture: user.profilePicture,
+        guardians: user.guardians,
+        stationDistrict: user.stationDistrict,
+      }
+    });
+  } catch (error) {
+    console.error("getProfile error:", error);
+    res.status(500).json({ msg: "Server error", error: error.message });
+  }
+};
+
+/* =========================
+   UPLOAD PROFILE PICTURE
+ ========================= */
+export const uploadProfilePicture = async (req, res) => {
+  try {
+    const userId = req.user._id || req.user.userId;
+    
+    if (!req.file) {
+      return res.status(400).json({ msg: "No file uploaded" });
+    }
+
+    // Upload to Cloudinary
+    const uploadResult = await uploadToCloudinary(req.file);
+    
+    // Update user profile
+    const user = await User.findByIdAndUpdate(
+      userId,
+      { profilePicture: uploadResult.url },
+      { new: true }
+    ).select("-password -otp -otpExpiry -isOtpVerified -resetPasswordOTP -resetPasswordOTPExpiry");
+
+    if (!user) {
+      return res.status(404).json({ msg: "User not found" });
+    }
+
+    res.json({
+      success: true,
+      msg: "Profile picture updated successfully",
+      user: {
+        id: user._id,
+        username: user.username,
+        email: user.email,
+        role: user.role,
+        profilePicture: user.profilePicture,
+      }
+    });
+  } catch (error) {
+    console.error("uploadProfilePicture error:", error);
     res.status(500).json({ msg: "Server error", error: error.message });
   }
 };

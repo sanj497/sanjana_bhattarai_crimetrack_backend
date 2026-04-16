@@ -622,3 +622,25 @@ export const updateProfile = async (req, res) => {
     res.status(500).json({ msg: "Server error", error: error.message });
   }
 };
+
+/* =========================
+   DELETE USER (ADMIN ONLY)
+ ========================= */
+export const deleteUser = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    
+    // Prevent admin from deleting themselves
+    if (req.user._id.toString() === userId) {
+      return res.status(400).json({ msg: "Cannot delete your own admin account." });
+    }
+
+    const user = await User.findByIdAndDelete(userId);
+    if (!user) return res.status(404).json({ msg: "User not found" });
+
+    res.json({ msg: "User removed successfully", success: true });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ msg: "Server error", error: error.message });
+  }
+};

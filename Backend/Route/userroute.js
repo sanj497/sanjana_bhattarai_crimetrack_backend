@@ -1,4 +1,4 @@
-import { register, registerStaff, login, verifyOtp, updateUserRole, getAllUsers, forgotPassword, resetPassword, updateProfile, verifyPoliceApplication } from '../Controllers/usercontroller.js';
+import { register, registerStaff, login, verifyOtp, updateUserRole, getAllUsers, forgotPassword, resetPassword, updateProfile, verifyPoliceApplication, deleteUser } from '../Controllers/usercontroller.js';
 import express from 'express';
 import { isAdmin, verifyToken } from '../middleware/authMiddleware.js';
 
@@ -20,4 +20,5 @@ router.put(
   updateUserRole
 );
 router.put("/verify-police/:userId", verifyToken, isAdmin, verifyPoliceApplication);
+router.delete("/remove/:userId", verifyToken, isAdmin, deleteUser);
 export default router;

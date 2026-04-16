@@ -638,7 +638,11 @@ export const getMapData = async (req, res) => {
     let query = {};
     
     if (userRole === "police") {
-      query.status = { $in: ["ForwardedToPolice", "UnderInvestigation", "Resolved"] };
+      // Police should ONLY see reports specifically assigned to them that are in active/resolved investigation states
+      query = { 
+        status: { $in: ["ForwardedToPolice", "UnderInvestigation", "Resolved"] },
+        "workflow.assignedToOfficer": req.user._id 
+      };
     } else if (userRole === "admin") {
       query.status = { $ne: "Pending" };
     } else {

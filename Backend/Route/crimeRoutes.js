@@ -10,6 +10,7 @@ import {
   getMyCrimes,
   getTransparencyStats,
   getPublicFeed,
+  getMapData,
   addReportInteraction,
   getReportInteractions,
   getNearbyReports,
@@ -59,8 +60,8 @@ router.post("/:id/broadcast-community-alert", authMiddleware, adminMiddleware, b
 
 router.get("/alert-queue", authMiddleware, adminMiddleware, getAlertQueue);
 
-// Community Dashboard
 router.get("/community",      optionalAuth,                        getPublicFeed);
+router.get("/map",            optionalAuth,                        getMapData);
 router.get("/nearby",         authMiddleware,                      getNearbyReports);
 router.post("/:id/responses", authMiddleware,                      addReportInteraction);
 router.get("/:id/responses",  optionalAuth,                        getReportInteractions);

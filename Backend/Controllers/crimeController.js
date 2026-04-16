@@ -630,6 +630,41 @@ export const getMyCrimes = async (req, res) => {
 };
 
 // ─────────────────────────────────────────────────────────────────
+// GET MAP DATA (Role-Based Global Reports)
+// ─────────────────────────────────────────────────────────────────
+export const getMapData = async (req, res) => {
+  try {
+    const userRole = req.user?.role;
+    let query = {};
+    
+    if (userRole === "police") {
+      query.status = { $in: ["ForwardedToPolice", "UnderInvestigation", "Resolved"] };
+    } else if (userRole === "admin") {
+      query.status = { $ne: "Pending" };
+    } else {
+      query["notificationsSent.community"] = true;
+    }
+
+    const reports = await Crime.find(query)
+      .select("-evidence.publicId -workflow.verificationNotes")
+      .populate("userId", "username")
+      .sort({ createdAt: -1 })
+      .limit(100); 
+
+    const sanitizedReports = reports.map(r => {
+      const obj = r.toObject();
+      if (obj.isAnonymous) obj.userId = { username: "Anonymous" };
+      return obj;
+    });
+
+    return res.json({ success: true, reports: sanitizedReports });
+  } catch (error) {
+    console.error("getMapData error:", error);
+    return res.status(500).json({ error: "Server error", details: error.message });
+  }
+};
+
+// ─────────────────────────────────────────────────────────────────
 // GET TRANSPARENCY & PERFORMANCE STATS
 // ─────────────────────────────────────────────────────────────────
 export const getTransparencyStats = async (req, res) => {
@@ -691,15 +726,15 @@ export const getTransparencyStats = async (req, res) => {
 // ─────────────────────────────────────────────────────────────────
 export const getPublicFeed = async (req, res) => {
   try {
-    // Show reports that are beyond the initial "Pending" state
-    const publicStatuses = ["Verified", "ForwardedToPolice", "UnderInvestigation", "Resolved"];
-    
-    const reports = await Crime.find({ status: { $in: publicStatuses } })
+    // Only show reports that the admin has officially broadcasted as a community alert
+    const reports = await Crime.find({ 
+      "notificationsSent.community": true,
+      status: { $in: ["Verified", "ForwardedToPolice", "UnderInvestigation", "Resolved"] }
+    })
       .select("-evidence.publicId -workflow.verificationNotes") 
-      .populate("userId", "username") // Only show username, hide email for public view
-      .sort({ createdAt: -1 });
+      .populate("userId", "username") 
+      .sort({ updatedAt: -1 });
 
-    // Further sanitize: if isAnonymous is true, hide the username
     const sanitizedReports = reports.map(report => {
       const r = report.toObject();
       if (r.isAnonymous) {
@@ -757,6 +792,16 @@ export const getNearbyReports = async (req, res) => {
     const { lat, lng, radius = 5000 } = req.query; 
     if (!lat || !lng) return res.status(400).json({ error: "Location required" });
 
+    const userRole = req.user?.role;
+    let statusFilter = { $ne: "Pending" };
+
+    if (userRole === "police") {
+      statusFilter = { $in: ["ForwardedToPolice", "UnderInvestigation", "Resolved"] };
+    } else if (userRole === "user") {
+      // For general users, nearby reports should follow public feed rules (admin alerts)
+      statusFilter = { "notificationsSent.community": true };
+    }
+
     const reports = await Crime.find({
       "location.coordinates": {
         $near: {
@@ -764,7 +809,7 @@ export const getNearbyReports = async (req, res) => {
           $maxDistance: parseInt(radius),
         },
       },
-      status: { $ne: "Pending" }
+      status: statusFilter
     }).populate("userId", "username").limit(20);
 
     const sanitized = reports.map(r => {

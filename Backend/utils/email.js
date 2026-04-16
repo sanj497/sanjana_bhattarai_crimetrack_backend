@@ -125,7 +125,237 @@ const getEmailTemplate = (crime, customMessage = null) => {
 // Send crime alert email (Professional version)
 export const sendCrimeAlertEmail = async (user, crime, customMessage = null, customHtml = null) => {
   try {
-    const html = getEmailTemplate(crime, customMessage);
+    // Check if this is an admin notification (simple message only)
+    const isAdminNotification = customMessage && customMessage.includes("New crime report has been submitted");
+    
+    // Check if this is a verification notification
+    const isVerifiedNotification = customMessage && customMessage.includes("Your crime report has been verified");
+    const isRejectedNotification = customMessage && customMessage.includes("Your crime report has been rejected");
+    const isPoliceAssignment = customMessage && customMessage.includes("New case has been assigned to you");
+    const isReporterForwarded = customMessage && customMessage.includes("Your crime report has been forwarded to the police");
+    
+    let html;
+    if (isAdminNotification) {
+      // Simple email for admin notifications
+      html = `
+        <div style="font-family: 'Inter', system-ui, -apple-system, sans-serif; max-width: 600px; margin: 0 auto; background-color: #f9fafb; border-radius: 16px; overflow: hidden; border: 1px solid #e5e7eb; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
+          <!-- Header -->
+          <div style="background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); padding: 32px 24px; text-align: center;">
+            <h1 style="color: #ffffff; margin: 0; font-size: 24px; font-weight: 800; letter-spacing: -0.025em;">
+              📋 New Case Report
+            </h1>
+          </div>
+
+          <!-- Content Body -->
+          <div style="padding: 32px 24px; background-color: #ffffff;">
+            <p style="color: #4b5563; line-height: 1.8; margin: 0 0 24px; font-size: 16px; font-weight: 500;">${customMessage}</p>
+
+            <!-- Action Button -->
+            <div style="text-align: center;">
+              <a href="${process.env.FRONTEND_URL || "http://localhost:5173"}/adReport" style="display: inline-block; background-color: #2563eb; color: #ffffff; padding: 14px 32px; border-radius: 8px; font-weight: 600; text-decoration: none; font-size: 14px;">
+                View Reports Dashboard
+              </a>
+            </div>
+          </div>
+
+          <!-- Footer -->
+          <div style="padding: 24px; background-color: #f8fafc; border-top: 1px solid #e5e7eb; text-align: center;">
+            <p style="color: #94a3b8; font-size: 11px; margin: 0;">
+              © 2026 CrimeTrack. Secure Network Transmission.
+            </p>
+          </div>
+        </div>
+      `;
+    } else if (isReporterForwarded) {
+      // Reporter notification when case is forwarded to police
+      html = `
+        <div style="font-family: 'Inter', system-ui, -apple-system, sans-serif; max-width: 600px; margin: 0 auto; background-color: #f9fafb; border-radius: 16px; overflow: hidden; border: 1px solid #e5e7eb; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
+          <!-- Header -->
+          <div style="background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%); padding: 32px 24px; text-align: center;">
+            <h1 style="color: #ffffff; margin: 0; font-size: 24px; font-weight: 800; letter-spacing: -0.025em;">
+              ✅ Case Forwarded to Police
+            </h1>
+            <p style="color: #ede9fe; margin: 8px 0 0; font-size: 14px;">Your report is now under investigation</p>
+          </div>
+
+          <!-- Content Body -->
+          <div style="padding: 32px 24px; background-color: #ffffff;">
+            <p style="color: #4b5563; line-height: 1.8; margin: 0 0 24px; font-size: 16px; font-weight: 500;">${customMessage}</p>
+
+            <!-- Status Update Box -->
+            <div style="background-color: #faf5ff; border-radius: 12px; padding: 20px; margin-bottom: 24px; border: 1px solid #e9d5ff;">
+              <p style="color: #6b21a8; font-size: 14px; margin: 0 0 12px; font-weight: 600;">
+                📊 Case Status Timeline:
+              </p>
+              <div style="color: #581c87; font-size: 13px; line-height: 2;">
+                <div>✅ Report Submitted</div>
+                <div>✅ Admin Verified</div>
+                <div style="font-weight: 700; color: #7c3aed;">👮 Forwarded to Police (Current)</div>
+                <div>⏳ Under Investigation</div>
+                <div>⏳ Resolution</div>
+              </div>
+            </div>
+
+            <!-- Info Box -->
+            <div style="background-color: #fef3c7; border-radius: 12px; padding: 20px; margin-bottom: 24px; border: 1px solid #fde68a;">
+              <p style="color: #92400e; font-size: 14px; margin: 0; font-weight: 500;">
+                💡 <strong>What happens next?</strong><br/>
+                The police will review your report, investigate the incident, and take appropriate action. You'll receive email updates at each stage of the process.
+              </p>
+            </div>
+
+            <!-- Action Button -->
+            <div style="text-align: center;">
+              <a href="${process.env.FRONTEND_URL || "http://localhost:5173"}/citizen" style="display: inline-block; background-color: #8b5cf6; color: #ffffff; padding: 14px 32px; border-radius: 8px; font-weight: 600; text-decoration: none; font-size: 14px;">
+                Track Your Report
+              </a>
+            </div>
+          </div>
+
+          <!-- Footer -->
+          <div style="padding: 24px; background-color: #f8fafc; border-top: 1px solid #e5e7eb; text-align: center;">
+            <p style="color: #94a3b8; font-size: 11px; margin: 0 0 12px;">Your courage to report helps make our community safer. Thank you!</p>
+            <p style="color: #64748b; font-size: 12px; font-weight: 500;">
+              © 2026 CrimeTrack. Secure Network Transmission.
+            </p>
+          </div>
+        </div>
+      `;
+    } else if (isPoliceAssignment) {
+      // Police case assignment email
+      html = `
+        <div style="font-family: 'Inter', system-ui, -apple-system, sans-serif; max-width: 600px; margin: 0 auto; background-color: #f9fafb; border-radius: 16px; overflow: hidden; border: 1px solid #e5e7eb; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
+          <!-- Header -->
+          <div style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); padding: 32px 24px; text-align: center;">
+            <h1 style="color: #ffffff; margin: 0; font-size: 24px; font-weight: 800; letter-spacing: -0.025em;">
+              🚨 Case Assignment
+            </h1>
+            <p style="color: #dbeafe; margin: 8px 0 0; font-size: 14px;">New case assigned for investigation</p>
+          </div>
+
+          <!-- Content Body -->
+          <div style="padding: 32px 24px; background-color: #ffffff;">
+            <p style="color: #4b5563; line-height: 1.8; margin: 0 0 24px; font-size: 16px; font-weight: 500;">${customMessage}</p>
+
+            <!-- Action Required Box -->
+            <div style="background-color: #eff6ff; border-radius: 12px; padding: 20px; margin-bottom: 24px; border: 1px solid #bfdbfe;">
+              <p style="color: #1e40af; font-size: 14px; margin: 0 0 12px; font-weight: 600;">
+                📋 Required Actions:
+              </p>
+              <ul style="color: #1e3a8a; font-size: 13px; margin: 0; padding-left: 20px; line-height: 1.8;">
+                <li>Review case details and evidence</li>
+                <li>Initiate field investigation</li>
+                <li>Update case status as you progress</li>
+                <li>Mark as resolved when complete</li>
+              </ul>
+            </div>
+
+            <!-- Action Button -->
+            <div style="text-align: center;">
+              <a href="${process.env.FRONTEND_URL || "http://localhost:5173"}/police/reports" style="display: inline-block; background-color: #3b82f6; color: #ffffff; padding: 14px 32px; border-radius: 8px; font-weight: 600; text-decoration: none; font-size: 14px;">
+                View Case Details
+              </a>
+            </div>
+          </div>
+
+          <!-- Footer -->
+          <div style="padding: 24px; background-color: #f8fafc; border-top: 1px solid #e5e7eb; text-align: center;">
+            <p style="color: #94a3b8; font-size: 11px; margin: 0 0 12px;">This is an official case assignment. Please prioritize accordingly.</p>
+            <p style="color: #64748b; font-size: 12px; font-weight: 500;">
+              © 2026 CrimeTrack. Secure Network Transmission.
+            </p>
+          </div>
+        </div>
+      `;
+    } else if (isVerifiedNotification) {
+      // Verified report email
+      html = `
+        <div style="font-family: 'Inter', system-ui, -apple-system, sans-serif; max-width: 600px; margin: 0 auto; background-color: #f9fafb; border-radius: 16px; overflow: hidden; border: 1px solid #e5e7eb; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
+          <!-- Header -->
+          <div style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 32px 24px; text-align: center;">
+            <h1 style="color: #ffffff; margin: 0; font-size: 24px; font-weight: 800; letter-spacing: -0.025em;">
+              ✅ Report Verified
+            </h1>
+            <p style="color: #d1fae5; margin: 8px 0 0; font-size: 14px;">Your submission has been approved</p>
+          </div>
+
+          <!-- Content Body -->
+          <div style="padding: 32px 24px; background-color: #ffffff;">
+            <p style="color: #4b5563; line-height: 1.8; margin: 0 0 24px; font-size: 16px; font-weight: 500;">${customMessage}</p>
+
+            <!-- Status Box -->
+            <div style="background-color: #f0fdf4; border-radius: 12px; padding: 20px; margin-bottom: 24px; border: 1px solid #bbf7d0;">
+              <p style="color: #166534; font-size: 14px; margin: 0; font-weight: 600; text-align: center;">
+                🎯 Status: Under Investigation
+              </p>
+            </div>
+
+            <!-- Action Button -->
+            <div style="text-align: center;">
+              <a href="${process.env.FRONTEND_URL || "http://localhost:5173"}/citizen" style="display: inline-block; background-color: #10b981; color: #ffffff; padding: 14px 32px; border-radius: 8px; font-weight: 600; text-decoration: none; font-size: 14px;">
+                View Your Report
+              </a>
+            </div>
+          </div>
+
+          <!-- Footer -->
+          <div style="padding: 24px; background-color: #f8fafc; border-top: 1px solid #e5e7eb; text-align: center;">
+            <p style="color: #94a3b8; font-size: 11px; margin: 0 0 12px;">Thank you for helping keep our community safe. You will be notified of any updates.</p>
+            <p style="color: #64748b; font-size: 12px; font-weight: 500;">
+              © 2026 CrimeTrack. Secure Network Transmission.
+            </p>
+          </div>
+        </div>
+      `;
+    } else if (isRejectedNotification) {
+      // Rejected report email
+      html = `
+        <div style="font-family: 'Inter', system-ui, -apple-system, sans-serif; max-width: 600px; margin: 0 auto; background-color: #f9fafb; border-radius: 16px; overflow: hidden; border: 1px solid #e5e7eb; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
+          <!-- Header -->
+          <div style="background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); padding: 32px 24px; text-align: center;">
+            <h1 style="color: #ffffff; margin: 0; font-size: 24px; font-weight: 800; letter-spacing: -0.025em;">
+              ❌ Report Rejected
+            </h1>
+            <p style="color: #fecaca; margin: 8px 0 0; font-size: 14px;">Action required on your submission</p>
+          </div>
+
+          <!-- Content Body -->
+          <div style="padding: 32px 24px; background-color: #ffffff;">
+            <p style="color: #4b5563; line-height: 1.8; margin: 0 0 24px; font-size: 16px; font-weight: 500;">${customMessage}</p>
+
+            <!-- Info Box -->
+            <div style="background-color: #fef2f2; border-radius: 12px; padding: 20px; margin-bottom: 24px; border: 1px solid #fecaca;">
+              <p style="color: #991b1b; font-size: 14px; margin: 0 0 12px; font-weight: 600;">
+                ⚠️ What you can do:
+              </p>
+              <ul style="color: #7f1d1d; font-size: 13px; margin: 0; padding-left: 20px; line-height: 1.8;">
+                <li>Submit a new report with additional evidence</li>
+                <li>Contact support if you believe this is an error</li>
+                <li>Provide more details about the incident</li>
+              </ul>
+            </div>
+
+            <!-- Action Button -->
+            <div style="text-align: center;">
+              <a href="${process.env.FRONTEND_URL || "http://localhost:5173"}/citizen" style="display: inline-block; background-color: #ef4444; color: #ffffff; padding: 14px 32px; border-radius: 8px; font-weight: 600; text-decoration: none; font-size: 14px;">
+                View Report Details
+              </a>
+            </div>
+          </div>
+
+          <!-- Footer -->
+          <div style="padding: 24px; background-color: #f8fafc; border-top: 1px solid #e5e7eb; text-align: center;">
+            <p style="color: #94a3b8; font-size: 11px; margin: 0 0 12px;">Need help? Contact our support team for assistance.</p>
+            <p style="color: #64748b; font-size: 12px; font-weight: 500;">
+              © 2026 CrimeTrack. Secure Network Transmission.
+            </p>
+          </div>
+        </div>
+      `;
+    } else {
+      // Use the standard template for other notifications
+      html = getEmailTemplate(crime, customMessage);
+    }
 
     const transporter = getTransporter();
     await transporter.sendMail({

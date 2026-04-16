@@ -187,7 +187,7 @@ export const createCrimeReport = async (req, res) => {
       const admins = await User.find({ role: "admin", isOtpVerified: true }, "_id email role");
       adminIds = admins.map(a => a._id);
       
-      const adminMessage = `🔴 URGENT: New crime report in ${crime.location.address} - "${crime.title}"`;
+      const adminMessage = `📋 New crime report has been submitted. Please check your dashboard to review, verify, and take necessary action.`;
 
       // 2. In-App Notifications (Bulk) — tagged for admin review
       if (adminIds.length) await bulkNotify(adminIds, crime._id, adminMessage, "admin_alert");
@@ -423,19 +423,43 @@ export const verifyCrimeReport = async (req, res) => {
 
     // 1. Notify the reporter
     if (crime.userId) {
-      const message = `✅ Your crime report "${crime.title}" has been verified by an admin.`;
+      let reporterMessage;
+      let emailSubject;
       
-      await notifyUserCrimeStatus(
-        crime.userId._id,
-        crime._id,
-        message
-      );
-
-      // Email Notification
-      if (crime.userId.email) {
-        sendCrimeAlertEmail(crime.userId, crime, message).catch((err) =>
-          console.error(`Verification email failed for ${crime.userId.email}:`, err.message)
+      if (isApproved) {
+        // Verified message
+        reporterMessage = `✅ Your crime report has been verified by our admin team. The case is now under further investigation and will be forwarded to the appropriate authorities for action. Thank you for helping keep our community safe.`;
+        
+        // In-app notification
+        await notifyUserCrimeStatus(
+          crime.userId._id,
+          crime._id,
+          reporterMessage
         );
+
+        // Email Notification
+        if (crime.userId.email) {
+          sendCrimeAlertEmail(crime.userId, crime, reporterMessage).catch((err) =>
+            console.error(`Verification email failed for ${crime.userId.email}:`, err.message)
+          );
+        }
+      } else {
+        // Rejected message
+        reporterMessage = `❌ Your crime report has been rejected after admin review. This decision may be due to insufficient evidence, duplicate reporting, or the incident not meeting our criteria. If you believe this is an error, please contact support or submit a new report with additional details.`;
+        
+        // In-app notification
+        await notifyUserCrimeStatus(
+          crime.userId._id,
+          crime._id,
+          reporterMessage
+        );
+
+        // Email Notification
+        if (crime.userId.email) {
+          sendCrimeAlertEmail(crime.userId, crime, reporterMessage).catch((err) =>
+            console.error(`Rejection email failed for ${crime.userId.email}:`, err.message)
+          );
+        }
       }
     }
 
@@ -515,11 +539,22 @@ export const forwardToPolice = async (req, res) => {
 
     // 1. Notify the reporter
     if (crime.userId) {
+      const reporterMessage = `✅ Your crime report has been forwarded to the police for further investigation. The authorities will review your submission and take appropriate action. You will receive updates as the case progresses. Thank you for helping keep our community safe.`;
+      
       await notifyUserCrimeStatus(
         crime.userId._id,
         crime._id,
-        `👮 Your crime report "${crime.title}" has been forwarded to the police for investigation.`
+        reporterMessage
       );
+      
+      // Send email to reporter
+      if (crime.userId.email) {
+        sendCrimeAlertEmail(crime.userId, crime, reporterMessage).catch((err) =>
+          console.error(`Forward notification email failed for ${crime.userId.email}:`, err.message)
+        );
+      }
+      
+      console.log(`✅ Reporter notified: ${crime.userId.email}`);
     }
 
     // 2. Real-time notification to POLICE (urgent - new case assigned)
@@ -528,17 +563,23 @@ export const forwardToPolice = async (req, res) => {
       "workflow.assignedAt": new Date()
     });
 
-    const assignedMessage = `🚨 NEW CASE ASSIGNED: "${crime.title}" (${crime.crimeType}) reported at ${crime.location?.address || "specified location"}. Evidence artifact bundle has been successfully synchronized for your unit. Please review intelligence and initiate field investigation immediately.`;
+    // Get the assigned officer details
+    const officer = await User.findById(assignedOfficerId).select("email username name");
+    
+    if (officer) {
+      const assignedMessage = `🚨 New case has been assigned to you: "${crime.title}" (${crime.crimeType}). The report has been verified by admin and is ready for your investigation. Please check your dashboard for full details and evidence.`;
 
-    // Create in-app notification for assigned officer (DB + realtime socket)
-    await notifyUserCrimeStatus(assignedOfficerId, crime._id, assignedMessage, "police_alert");
+      // Create in-app notification for assigned officer (DB + realtime socket)
+      await notifyUserCrimeStatus(assignedOfficerId, crime._id, assignedMessage, "police_alert");
 
-    // 3. Email notification ONLY to the assigned officer
-    const officer = await User.findById(assignedOfficerId).select("email username");
-    if (officer && officer.email) {
-      await sendCrimeAlertEmail(officer, crime, assignedMessage).catch(err => 
-        console.error(`Email failed for officer ${officer.email}:`, err.message)
-      );
+      // Email notification ONLY to the assigned officer
+      if (officer.email) {
+        await sendCrimeAlertEmail(officer, crime, assignedMessage).catch(err => 
+          console.error(`Email failed for officer ${officer.email}:`, err.message)
+        );
+      }
+      
+      console.log(`✅ Case forwarded to officer: ${officer.username || officer.name} (${officer.email})`);
     }
 
     // 4. Send crime alert to nearby citizens

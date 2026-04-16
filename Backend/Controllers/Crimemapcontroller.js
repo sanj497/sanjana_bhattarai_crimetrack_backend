@@ -131,8 +131,8 @@ export const submitCrimeReport = async (req, res) => {
 
       console.log(`🎯 Targeted Broadcast: ${adminIds.length} admins, ${policeIds.length} police, ${citizenIds.length} nearby citizens.`);
 
-      const adminMessage = `🚨 NEW MAP REPORT: ${report.crimeType} at ${report.address}`;
-      const safeAlertMessage = `🛡️ SAFE ALERT: A ${report.crimeType} has been reported within 5km of your location on the community map. Authorities have been alerted. Please stay vigilant.`;
+      const adminMessage = `📋 New crime report has been submitted. Please check your dashboard to review, verify, and take necessary action.`;
+      const safeAlertMessage = `🚨 Crime Alert: A new incident has been reported in your area. The case has been forwarded to authorities for review. For your safety, stay alert, be cautious while traveling, avoid isolated places, and report any suspicious activity immediately.`;
 
       // 3. In-App Notifications (Bulk)
       if (adminIds.length) await bulkNotify(adminIds, report._id, adminMessage, "admin_alert");

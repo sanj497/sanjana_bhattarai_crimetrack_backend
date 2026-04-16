@@ -48,7 +48,8 @@ app.use(cors({
     // Allow requests with no origin (like mobile apps or curl requests)
     if (!origin) return callback(null, true);
     
-    const isVercel = origin.endsWith(".vercel.app") && origin.includes("sanjana-bhattarai-crimetrack");
+    // Loosen Vercel CORS to accommodate Vercel's preview URL generation format
+    const isVercel = origin.endsWith(".vercel.app") && (origin.includes("sanjana") || origin.includes("crimetrack"));
     
     if (allowedOrigins.indexOf(origin) !== -1 || isVercel) {
       callback(null, true);

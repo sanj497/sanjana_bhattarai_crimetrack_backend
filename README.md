@@ -7,18 +7,26 @@ Crime Track is a comprehensive web-based platform designed to facilitate secure 
 ### For Citizens:
 - **Crime Reporting:** Submit detailed crime reports with evidence (images/videos).
 - **Interactive Crime Map:** View crime incidents visually on an interactive map using Leaflet.
+- **Admin Alerts Hub:** Dedicated interface to receive and monitor verified safety broadcasts sent by the administration.
 - **SOS & Emergency Contacts:** Quickly access emergency contacts and trigger SOS alerts in critical situations.
 - **Complaints & Feedback:** Submit complaints regarding ongoing issues or provide feedback on police actions.
 
 ### For Police:
 - **Police Dashboard:** Review, update, and manage assigned crime reports.
 - **Real-time Notifications:** Receive instant updates and SOS alerts using WebSocket connections.
+- **Automated Task Routing:** Receive email-based notifications dynamically upon case assignments.
 - **Task Verification:** Tools to verify the legitimacy and status of submitted reports.
 
 ### For Admin:
 - **System Oversight:** Monitor the entire system, manage users (Citizens, Police), and handle administrative tasks.
+- **User Directory:** Professional, high-density secure data table to universally manage and remove users.
+- **Safety Broadcasts:** Publish targeted, official "Admin Alerts" securely to citizen dashboards.
 - **Feedback Management:** Review user feedback and complaints to improve the system's efficiency.
 - **Data Analytics:** Access to detailed reports and map insights.
+
+### Core Security Enhancements:
+- **Strict Cross-Tab Auth Synchronization:** Active browser session tracking via reactive `storage` events guarantees instant cross-tab access synchronization and blocks concurrent multi-tab spoofing.
+- **Vercel-Optimized CORS:** Robust firewall allowing dynamically generated preview deployments while rejecting unfamiliar origins.
 
 ## 🛠️ Technology Stack
 

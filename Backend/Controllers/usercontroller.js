@@ -17,14 +17,31 @@ const JWT_SECRET = process.env.JWT_SECRET;
 const generateOTP = () => Math.floor(100000 + Math.random() * 900000);
 
 const sendOtpEmail = async ({ email, username, subject, html, context }) => {
-  await ensureTransporterReady();
-  const info = await getTransporter().sendMail({
-    from: process.env.EMAIL_FROM || process.env.EMAIL_USER,
-    to: email,
-    subject,
-    html,
-  });
-  console.log(`✅ ${context} OTP email sent to ${email}:`, info.response);
+  try {
+    console.log(`📧 Attempting to send ${context} OTP to ${email}`);
+    console.log(`📧 Email User: ${process.env.EMAIL_USER}`);
+    console.log(`📧 Email From: ${process.env.EMAIL_FROM}`);
+    
+    await ensureTransporterReady();
+    
+    const info = await getTransporter().sendMail({
+      from: `"CrimeTrack Verification" <${process.env.EMAIL_FROM || process.env.EMAIL_USER}>`,
+      to: email,
+      subject,
+      html,
+    });
+    
+    console.log(`✅ ${context} OTP email sent successfully to ${email}`);
+    console.log(`✅ Message ID: ${info.messageId}`);
+    console.log(`✅ Response: ${info.response}`);
+    return info;
+  } catch (error) {
+    console.error(`❌ ${context} OTP email failed for ${email}:`);
+    console.error(`❌ Error: ${error.message}`);
+    console.error(`❌ Error Code: ${error.code}`);
+    console.error(`❌ Full Error:`, error);
+    throw error;
+  }
 };
 
 /* =========================
@@ -299,9 +316,19 @@ export const register = async (req, res) => {
           </div>
         `,
       });
+      
+      console.log(`✅ OTP email successfully delivered to ${email}`);
     } catch (mailErr) {
       console.error(`❌ Registration OTP email failed for ${email}:`, mailErr.message);
-      return res.status(500).json({ msg: "Registration saved, but OTP email delivery failed. Please check configuration." });
+      console.error(`❌ Error details:`, mailErr);
+      
+      // Return detailed error to help debug
+      return res.status(500).json({ 
+        msg: "Registration saved, but OTP email delivery failed.",
+        error: mailErr.message,
+        errorCode: mailErr.code,
+        hint: "Please check: 1) EMAIL_USER and EMAIL_PASS in .env, 2) Gmail App Password is valid, 3) Less secure apps access is enabled"
+      });
     }
 
     res.status(201).json({

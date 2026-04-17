@@ -53,7 +53,13 @@ export const getTransporter = () => {
 export const ensureTransporterReady = async () => {
   getTransporter();
   if (transporterReady) {
-    await transporterReady;
+    try {
+      await transporterReady;
+      console.log("✅ Email transporter verification completed");
+    } catch (error) {
+      console.error("❌ Email transporter verification failed:", error.message);
+      throw new Error(`Email service not available: ${error.message}`);
+    }
   }
 };
 

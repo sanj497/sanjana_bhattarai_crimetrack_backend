@@ -1,22 +1,22 @@
 import dotenv from "dotenv";
-dotenv.config({ path: "./Backend/.env" });
+dotenv.config({ path: "./src/.env" });
 
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import { createServer } from "http";
-import connectDB from "./Backend/config/mongodb.js";
+import connectDB from "./src/config/mongodb.js";
 
 // Routes
-import userroute from "./Backend/Route/userroute.js";
-import reportroute from "./Backend/Route/crimeRoutes.js";
-import notificationroute from "./Backend/Route/notificationRoutes.js";
-import feedbackroute from "./Backend/Route/FeedbackRoutes.js";
-import Crimereportroutes from "./Backend/Route/Crimereportroutes.js";
-import complaintRoutes from "./Backend/Route/Complaintroutes.js";
-import emergencyRoutes from "./Backend/Route/emergencyRoutes.js";
-import { initSocket } from "./Backend/socket.js";
+import userroute from "./src/Route/userroute.js";
+import reportroute from "./src/Route/crimeRoutes.js";
+import notificationroute from "./src/Route/notificationRoutes.js";
+import feedbackroute from "./src/Route/FeedbackRoutes.js";
+import Crimereportroutes from "./src/Route/Crimereportroutes.js";
+import complaintRoutes from "./src/Route/Complaintroutes.js";
+import emergencyRoutes from "./src/Route/emergencyRoutes.js";
+import { initSocket } from "./src/socket.js";
 
 const app = express();
 const port = process.env.PORT || 5000;

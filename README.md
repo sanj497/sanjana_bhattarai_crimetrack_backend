@@ -49,14 +49,15 @@ Crime Track is a comprehensive web-based platform designed to facilitate secure 
 ## 📂 Project Structure
 
 ```text
-Crime Track/
-├── Backend/                 # Server-side code
+Crime Track Backend/
+├── src/                     # Server-side source code
 │   ├── config/              # Database and environmental configurations
 │   ├── Controllers/         # API business logic
 │   ├── middleware/          # Authentication and validation middlewares
 │   ├── Models/              # Mongoose database schemas
 │   │   ├── Complaint.js
 │   │   ├── Crime.js
+│   │   ├── CrimeInteraction.js
 │   │   ├── Crimereport.js
 │   │   ├── Emergencycontact.js
 │   │   ├── Feedback.js
@@ -64,20 +65,17 @@ Crime Track/
 │   │   ├── sosalert.js
 │   │   └── usermodel.js
 │   ├── Route/               # API endpoint routing
-│   ├── Services/            # Reusable core services
-│   ├── utils/               # Helper utilities
-│   ├── server.js            # Express application entry point
-│   └── socket.js            # Socket.io configuration
+│   ├── utils/               # Helper utilities (email, cloudinary)
+│   ├── .env                 # Environment variables (DO NOT COMMIT)
+│   ├── socket.js            # Socket.io configuration
+│   ├── test-email.js        # Email configuration test script
+│   └── vercel.json          # Vercel deployment configuration
 │
-└── Frontend/                # Client-side code
-    ├── public/              # Static assets
-    ├── src/
-    │   ├── assets/          # Images and icons
-    │   ├── Components/      # Reusable React components (Dashboards, etc.)
-    │   ├── Pages/           # Application pages (Home, Login, Map, etc.)
-    │   ├── App.jsx          # Main React component and Routing definition
-    │   └── main.jsx         # React DOM rendering entry point
-    ├── index.html           # Main HTML template
+├── server.js                # Express application entry point
+├── package.json             # Project dependencies and scripts
+├── render.yaml              # Render deployment configuration
+└── README.md                # Project documentation
+```
     └── vite.config.js       # Vite configuration
 ```
 

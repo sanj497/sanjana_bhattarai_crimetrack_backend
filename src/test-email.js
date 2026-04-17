@@ -111,7 +111,7 @@ async function testEmail() {
       console.error('   1. Gmail App Password is incorrect or expired');
       console.error('   2. Go to: https://myaccount.google.com/apppasswords');
       console.error('   3. Generate a NEW App Password');
-      console.error('   4. Update EMAIL_PASS in Backend/.env');
+      console.error('   4. Update EMAIL_PASS in src/.env');
       console.error('   5. Restart the backend server');
     } else if (error.code === 'ESOCKET' || error.code === 'ECONNECTION') {
       console.error('\n🌐 Connection Error:');
@@ -128,7 +128,7 @@ async function testEmail() {
       console.error('   1. Verify EMAIL_USER is a valid Gmail address');
       console.error('   2. Ensure 2-Factor Authentication is enabled on Gmail');
       console.error('   3. Generate App Password (not regular password)');
-      console.error('   4. Check Backend/.env file has correct values');
+      console.error('   4. Check src/.env file has correct values');
       console.error('   5. Restart backend server after .env changes');
     }
     
@@ -138,8 +138,8 @@ async function testEmail() {
     console.error('   3. Visit: https://myaccount.google.com/apppasswords');
     console.error('   4. Select "Mail" and your device');
     console.error('   5. Copy the 16-character password');
-    console.error('   6. Update EMAIL_PASS in Backend/.env');
-    console.error('   7. Run this test again: node test-email.js\n');
+    console.error('   6. Update EMAIL_PASS in src/.env');
+    console.error('   7. Run this test again: node src/test-email.js\n');
     
     process.exit(1);
   }

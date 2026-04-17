@@ -130,8 +130,30 @@ export const updateSOSStatus = async (req, res) => {
 // @route   GET /api/emergency/sos
 export const getAllSOS = async (req, res) => {
   try {
-    const sosList = await SosAlert.find().sort({ createdAt: -1 }).populate("userId", "name email");
-    res.status(200).json({ success: true, data: sosList });
+    // ✅ Pagination params
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 5;
+
+    const skip = (page - 1) * limit;
+
+    // ✅ Total alerts
+    const total = await SosAlert.countDocuments();
+
+    // ✅ Paginated data
+    const sosList = await SosAlert.find()
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .populate("userId", "name email phone");
+
+    res.status(200).json({
+      success: true,
+      data: sosList,
+      total,
+      totalPages: Math.ceil(total / limit),
+      currentPage: page,
+    });
+
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }

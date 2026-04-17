@@ -1069,27 +1069,82 @@ export const getNearbyCitizens = async (req, res) => {
     const crime = await Crime.findById(req.params.id);
     if (!crime) return res.status(404).json({ error: "Case not found" });
 
-    const radius = parseInt(req.query.radius) || 5000; // Default 5km
+    const radius = parseInt(req.query.radius) || 20000; // Default 20km
     
-    // Find all users with role 'user' near the crime coordinates
+    // Find all verified citizens (users with role 'user')
+    // Since most citizens don't have location saved, we'll get all verified users
+    // and the broadcast will notify them all (or you can implement location tracking)
     const nearbyCitizens = await User.find({
       role: "user",
-      isOtpVerified: true,
-      "stationLocation.coordinates": {
-         $near: {
-           $geometry: { 
-             type: "Point", 
-             coordinates: [crime.location.lng, crime.location.lat] 
-           },
-           $maxDistance: radius
-         }
+      isOtpVerified: true
+    }).select("username name email stationLocation stationDistrict").limit(100);
+
+    // If crime has location and users have location, calculate distance
+    const citizensWithDistance = [];
+    
+    if (crime.location?.lat && crime.location?.lng) {
+      for (const citizen of nearbyCitizens) {
+        let distance = null;
+        let distanceText = "Location not set";
+        
+        // Check if citizen has location data
+        if (citizen.stationLocation?.coordinates && citizen.stationLocation.coordinates.length === 2) {
+          const [citLng, citLat] = citizen.stationLocation.coordinates;
+          if (citLat && citLng) {
+            // Calculate distance using Haversine formula
+            const R = 6371e3; // Earth's radius in meters
+            const φ1 = crime.location.lat * Math.PI/180;
+            const φ2 = citLat * Math.PI/180;
+            const Δφ = (citLat - crime.location.lat) * Math.PI/180;
+            const Δλ = (citLng - crime.location.lng) * Math.PI/180;
+
+            const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
+                      Math.cos(φ1) * Math.cos(φ2) *
+                      Math.sin(Δλ/2) * Math.sin(Δλ/2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            distance = R * c;
+            
+            if (distance <= radius) {
+              const km = (distance / 1000).toFixed(1);
+              distanceText = `${km} km away`;
+              
+              citizensWithDistance.push({
+                ...citizen.toObject(),
+                distance,
+                distanceText
+              });
+            }
+          }
+        } else {
+          // Include citizens without location (they'll still get notified)
+          citizensWithDistance.push({
+            ...citizen.toObject(),
+            distance: null,
+            distanceText: "Distance unknown"
+          });
+        }
       }
-    }).select("username name email stationLocation stationDistrict");
+      
+      // Sort by distance (those with location first, then by distance)
+      citizensWithDistance.sort((a, b) => {
+        if (a.distance === null && b.distance === null) return 0;
+        if (a.distance === null) return 1;
+        if (b.distance === null) return -1;
+        return a.distance - b.distance;
+      });
+    } else {
+      // If crime has no location, return all citizens
+      citizensWithDistance.push(...nearbyCitizens.map(c => ({
+        ...c.toObject(),
+        distance: null,
+        distanceText: "Crime location not set"
+      })));
+    }
 
     return res.json({
       success: true,
-      count: nearbyCitizens.length,
-      citizens: nearbyCitizens
+      count: citizensWithDistance.length,
+      citizens: citizensWithDistance
     });
   } catch (error) {
     console.error("getNearbyCitizens error:", error);
@@ -1117,7 +1172,7 @@ export const sendManualSafeAlert = async (req, res) => {
         location: {
           $near: {
             $geometry: { type: "Point", coordinates: crime.location.coordinates },
-            $maxDistance: 10000 // 10km
+            $maxDistance: 20000 // 20km
           }
         }
       }).select("_id email username");

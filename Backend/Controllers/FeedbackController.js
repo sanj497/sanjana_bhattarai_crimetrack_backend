@@ -53,11 +53,29 @@ export const submitAuthFeedback = async (req, res) => {
 // Get all feedback (admin only)
 export const getAllFeedback = async (req, res) => {
   try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+
+    const total = await Feedback.countDocuments({});
     const feedbacks = await Feedback.find({})
       .populate("userId", "email")
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit);
 
-    res.json({ success: true, feedbacks });
+    res.json({ 
+      success: true, 
+      feedbacks,
+      pagination: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+        hasNextPage: page < Math.ceil(total / limit),
+        hasPrevPage: page > 1
+      }
+    });
   } catch (err) {
     res.status(500).json({ error: "Server error", details: err.message });
   }

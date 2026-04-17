@@ -124,6 +124,7 @@ export const createCrimeReport = async (req, res) => {
     }
 
     console.log("💾 Saving crime report to database...");
+    console.log("📸 Evidence to save:", evidence);
 
     // ── Persist crime with professional workflow ─────────────────
     const crime = await Crime.create({
@@ -148,6 +149,7 @@ export const createCrimeReport = async (req, res) => {
     });
 
     console.log("✅ Crime report saved to database:", crime._id);
+    console.log("📸 Saved evidence count:", crime.evidence?.length);
 
     // ── 1. IMMEDIATE REPORTER CONFIRMATION ────────────────────────────
     const reporterMessage = "✅ Your report has been submitted. Our admin team is reviewing your record.";

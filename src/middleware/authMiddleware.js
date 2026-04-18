@@ -1,6 +1,15 @@
 import jwt from "jsonwebtoken";
 import User from "../Models/usermodel.js";
 
+// Ensure JWT_SECRET is available
+const getJwtSecret = () => {
+  const secret = process.env.JWT_SECRET;
+  if (!secret) {
+    throw new Error("JWT_SECRET is not defined in environment variables");
+  }
+  return secret;
+};
+
 export const authMiddleware = async (req, res, next) => {
   try {
     const authHeader = req.headers.authorization || "";
@@ -10,7 +19,7 @@ export const authMiddleware = async (req, res, next) => {
 
     if (!token) return res.status(401).json({ msg: "No token provided" });
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const decoded = jwt.verify(token, getJwtSecret());
 
     const userId = decoded.userId;
     if (!userId) return res.status(401).json({ msg: "Invalid token" });
@@ -30,7 +39,7 @@ export const optionalAuth = async (req, res, next) => {
     const token = authHeader.startsWith("Bearer ") ? authHeader.split(" ")[1] : null;
     
     if (token) {
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      const decoded = jwt.verify(token, getJwtSecret());
       req.user = await User.findById(decoded.userId).select("-password");
     }
     next();
@@ -51,7 +60,7 @@ export const verifyToken = (req, res, next) => {
     const authHeader = req.headers.authorization;
     if (!authHeader) return res.status(401).json({ msg: "No token" });
     const token = authHeader.split(" ")[1];
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const decoded = jwt.verify(token, getJwtSecret());
     req.user = decoded;
     next();
   } catch (error) {

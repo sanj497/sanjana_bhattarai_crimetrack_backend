@@ -23,11 +23,20 @@ export const getTransporter = () => {
         ? {
             host: process.env.EMAIL_HOST,
             port: Number(process.env.EMAIL_PORT),
-            secure: process.env.EMAIL_SECURE === "true",
+            secure: process.env.EMAIL_SECURE === "true", // true for port 465, false for 587
             auth: {
               user: process.env.EMAIL_USER,
               pass: emailPass,
             },
+            // Production email settings to avoid spam
+            tls: {
+              rejectUnauthorized: false // Allow self-signed certs
+            },
+            pool: true, // Use connection pooling
+            maxConnections: 5,
+            maxMessages: 100,
+            rateDelta: 1000, // 1 second
+            rateLimit: 5 // Max 5 emails per second
           }
         : {
             service: "gmail",
@@ -35,6 +44,10 @@ export const getTransporter = () => {
               user: process.env.EMAIL_USER,
               pass: emailPass,
             },
+            // Production email settings
+            pool: true,
+            maxConnections: 5,
+            maxMessages: 100
           }
     );
 
@@ -401,7 +414,7 @@ export const sendSOSEmail = async (guardian, citizen, coords) => {
             <div style="background-color: #fef2f2; border-radius: 12px; padding: 24px; margin: 24px 0; border: 1px solid #fee2e2;">
               <h3 style="margin: 0 0 12px; color: #b91c1c; font-size: 14px; text-transform: uppercase; letter-spacing: 0.05em;">Last Known Location</h3>
               <a href="${mapLink}" style="display: block; color: #ef4444; font-weight: 700; font-size: 18px; text-decoration: underline; margin-bottom: 12px;">
-                📍 View on Google Maps
+                📍 View on Maps
               </a>
               <p style="margin: 0; color: #7f1d1d; font-size: 13px;">
                 <strong>Coordinates:</strong> ${coords.latitude}, ${coords.longitude}<br>

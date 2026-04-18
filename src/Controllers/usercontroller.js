@@ -21,7 +21,7 @@ const getJwtSecret = () => {
 ========================= */
 const generateOTP = () => Math.floor(100000 + Math.random() * 900000);
 
-const sendOtpEmail = async ({ email, username, subject, html, context }) => {
+const sendOtpEmail = async ({ email, username, subject, html, text, context }) => {
   try {
     console.log(`📧 Attempting to send ${context} OTP to ${email}`);
     console.log(`📧 Email User: ${process.env.EMAIL_USER}`);
@@ -30,19 +30,23 @@ const sendOtpEmail = async ({ email, username, subject, html, context }) => {
     await ensureTransporterReady();
     
     const info = await getTransporter().sendMail({
-      from: `"CrimeTrack Security" <${process.env.EMAIL_FROM || process.env.EMAIL_USER}>`,
+      from: `"CrimeTrack" <${process.env.EMAIL_FROM || process.env.EMAIL_USER}>`,
       to: email,
       subject: subject,
       html: html,
-      text: `Your ${context} verification code is ready. Please check your email client for the formatted version.`,
+      text: text || `Your verification code is ready. Please open this email in an HTML-compatible email client to view your verification code.`,
       headers: {
-        'X-Priority': '1',
-        'X-MSMail-Priority': 'High',
-        'Importance': 'High',
-        'List-Unsubscribe': `<mailto:${process.env.EMAIL_FROM || process.env.EMAIL_USER}?subject=Unsubscribe>`,
-        'Precedence': 'bulk',
-        'Auto-Submitted': 'auto-generated'
-      }
+        'X-Priority': '3',
+        'X-MSMail-Priority': 'Normal',
+        'Importance': 'Normal',
+        'List-Unsubscribe': `<mailto:${process.env.EMAIL_FROM || process.env.EMAIL_USER}?subject=unsubscribe>`,
+        'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+        'Feedback-ID': `crimetrack:${context}:production`,
+        'X-Entity-Ref-ID': `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+      },
+      // Production email settings
+      priority: 'normal',
+      encoding: 'utf-8'
     });
     
     console.log(`✅ ${context} OTP email sent successfully to ${email}`);
@@ -143,56 +147,53 @@ export const registerStaff = async (req, res) => {
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Verify Your Account</title>
 </head>
-<body style="margin: 0; padding: 0; background-color: #f3f4f6; font-family: 'Amazon Ember', Arial, sans-serif;">
-  <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #f3f4f6;">
+<body style="margin: 0; padding: 0; background-color: #f4f4f5; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">
+  <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #f4f4f5;">
     <tr>
       <td align="center" style="padding: 40px 20px;">
-        <table role="presentation" style="max-width: 600px; width: 100%; border-collapse: collapse; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+        <table role="presentation" style="max-width: 600px; width: 100%; border-collapse: collapse; background-color: #ffffff; border-radius: 8px; overflow: hidden;">
           <!-- Header -->
           <tr>
-            <td style="background: linear-gradient(135deg, #232f3e 0%, #37475a 100%); padding: 32px 40px; text-align: center;">
-              <h1 style="margin: 0; color: #ffffff; font-size: 28px; font-weight: 700; letter-spacing: -0.5px;">CrimeTrack</h1>
-              <p style="margin: 8px 0 0; color: #9ca3af; font-size: 14px;">Professional Crime Tracking System</p>
+            <td style="background-color: #18181b; padding: 40px 48px; text-align: center;">
+              <h1 style="margin: 0; color: #ffffff; font-size: 24px; font-weight: 600;">CrimeTrack</h1>
             </td>
           </tr>
           
           <!-- Content -->
           <tr>
-            <td style="padding: 40px;">
-              <h2 style="margin: 0 0 16px; color: #232f3e; font-size: 24px; font-weight: 600;">Verify Your Email Address</h2>
-              <p style="margin: 0 0 24px; color: #4b5563; font-size: 16px; line-height: 1.6;">Hello <strong style="color: #232f3e;">${username}</strong>,</p>
-              <p style="margin: 0 0 24px; color: #4b5563; font-size: 16px; line-height: 1.6;">Thank you for registering as a <strong style="color: #232f3e;">${role.toUpperCase()}</strong> officer. Please use the verification code below to complete your registration:</p>
+            <td style="padding: 48px 48px 32px;">
+              <h2 style="margin: 0 0 24px; color: #18181b; font-size: 24px; font-weight: 600;">Verify your email address</h2>
+              <p style="margin: 0 0 16px; color: #52525b; font-size: 16px; line-height: 1.6;">Hi ${username},</p>
+              <p style="margin: 0 0 32px; color: #52525b; font-size: 16px; line-height: 1.6;">Thank you for registering as a ${role === "admin" ? "Admin" : "Police Officer"}. Please use the verification code below to complete your registration:</p>
               
-              <!-- OTP Box -->
-              <table role="presentation" style="width: 100%; border-collapse: collapse; margin: 32px 0; background-color: #f9fafb; border: 2px solid #e5e7eb; border-radius: 8px;">
+              <!-- OTP Code -->
+              <table role="presentation" style="width: 100%; border-collapse: collapse; margin: 0 0 32px;">
                 <tr>
-                  <td style="padding: 32px; text-align: center;">
-                    <p style="margin: 0 0 8px; color: #6b7280; font-size: 14px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px;">Your Verification Code</p>
-                    <p style="margin: 0; font-size: 48px; font-weight: 700; color: #232f3e; letter-spacing: 12px; font-family: 'Courier New', monospace;">${otp}</p>
+                  <td style="background-color: #fafafa; border: 1px solid #e4e4e7; border-radius: 8px; padding: 32px; text-align: center;">
+                    <p style="margin: 0 0 8px; color: #71717a; font-size: 14px; font-weight: 500;">Verification code</p>
+                    <p style="margin: 0; font-size: 48px; font-weight: 700; color: #18181b; letter-spacing: 8px; font-family: 'SF Mono', 'Roboto Mono', monospace;">${otp}</p>
                   </td>
                 </tr>
               </table>
               
-              <!-- Validity Info -->
-              <table role="presentation" style="width: 100%; border-collapse: collapse; margin: 24px 0; background-color: #eff6ff; border-left: 4px solid #3b82f6; border-radius: 4px;">
-                <tr>
-                  <td style="padding: 16px 20px;">
-                    <p style="margin: 0; color: #1e40af; font-size: 14px; line-height: 1.6;">⏱️ This code is valid for <strong>10 minutes</strong>. Please do not share this code with anyone.</p>
-                  </td>
-                </tr>
-              </table>
-              
-              <p style="margin: 24px 0 0; color: #6b7280; font-size: 14px; line-height: 1.6;">If you did not request this verification, please ignore this email or contact our support team.</p>
+              <p style="margin: 0 0 24px; color: #52525b; font-size: 14px; line-height: 1.6;">This code will expire in 10 minutes. If you did not request this verification, you can safely ignore this email.</p>
+            </td>
+          </tr>
+          
+          <!-- Divider -->
+          <tr>
+            <td style="padding: 0 48px;">
+              <div style="border-top: 1px solid #e4e4e7;"></div>
             </td>
           </tr>
           
           <!-- Footer -->
           <tr>
-            <td style="background-color: #f9fafb; padding: 32px 40px; border-top: 1px solid #e5e7eb;">
-              <p style="margin: 0 0 12px; color: #6b7280; font-size: 12px; line-height: 1.6;">This is an automated message from CrimeTrack Security System. Please do not reply to this email.</p>
-              <p style="margin: 0 0 12px; color: #9ca3af; font-size: 12px;">© 2026 CrimeTrack. All rights reserved.</p>
-              <p style="margin: 0; color: #9ca3af; font-size: 12px;">Secure Authentication | Professional Crime Management</p>
+            <td style="padding: 32px 48px 48px;">
+              <p style="margin: 0 0 8px; color: #71717a; font-size: 14px; line-height: 1.6;">Need help? Contact our support team.</p>
+              <p style="margin: 0; color: #a1a1aa; font-size: 12px;">&copy; 2026 CrimeTrack. All rights reserved.</p>
             </td>
           </tr>
         </table>
@@ -202,6 +203,7 @@ export const registerStaff = async (req, res) => {
 </body>
 </html>
         `,
+        text: `Hi ${username},\n\nThank you for registering as a ${role === "admin" ? "Admin" : "Police Officer"}.\n\nYour verification code is: ${otp}\n\nThis code will expire in 10 minutes.\n\nIf you did not request this verification, you can safely ignore this email.\n\nCrimeTrack Support`
       });
     } catch (mailErr) {
       console.error(`❌ Staff OTP email failed for ${email}:`, mailErr.message);
@@ -376,67 +378,57 @@ export const register = async (req, res) => {
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Verify Your Account</title>
 </head>
-<body style="margin: 0; padding: 0; background-color: #f3f4f6; font-family: 'Amazon Ember', Arial, sans-serif;">
-  <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #f3f4f6;">
+<body style="margin: 0; padding: 0; background-color: #f4f4f5; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">
+  <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #f4f4f5;">
     <tr>
       <td align="center" style="padding: 40px 20px;">
-        <table role="presentation" style="max-width: 600px; width: 100%; border-collapse: collapse; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+        <table role="presentation" style="max-width: 600px; width: 100%; border-collapse: collapse; background-color: #ffffff; border-radius: 8px; overflow: hidden;">
           <!-- Header -->
           <tr>
-            <td style="background: linear-gradient(135deg, #232f3e 0%, #37475a 100%); padding: 32px 40px; text-align: center;">
-              <h1 style="margin: 0; color: #ffffff; font-size: 28px; font-weight: 700; letter-spacing: -0.5px;">CrimeTrack</h1>
-              <p style="margin: 8px 0 0; color: #9ca3af; font-size: 14px;">Professional Crime Tracking System</p>
+            <td style="background-color: #18181b; padding: 40px 48px; text-align: center;">
+              <h1 style="margin: 0; color: #ffffff; font-size: 24px; font-weight: 600;">CrimeTrack</h1>
             </td>
           </tr>
           
           <!-- Content -->
           <tr>
-            <td style="padding: 40px;">
-              <h2 style="margin: 0 0 16px; color: #232f3e; font-size: 24px; font-weight: 600;">${role === "police" ? "Officer Account Verification" : "Verify Your Email Address"}</h2>
-              <p style="margin: 0 0 24px; color: #4b5563; font-size: 16px; line-height: 1.6;">Hello <strong style="color: #232f3e;">${username}</strong>,</p>
-              <p style="margin: 0 0 24px; color: #4b5563; font-size: 16px; line-height: 1.6;">${role === "police" ? "Thank you for applying as a Police Officer. Please use the verification code below to complete your application:" : "Thank you for registering with CrimeTrack. Please use the verification code below to complete your registration:"}</p>
+            <td style="padding: 48px 48px 32px;">
+              <h2 style="margin: 0 0 24px; color: #18181b; font-size: 24px; font-weight: 600;">${role === "police" ? "Verify your officer application" : "Verify your email address"}</h2>
+              <p style="margin: 0 0 16px; color: #52525b; font-size: 16px; line-height: 1.6;">Hi ${username},</p>
+              <p style="margin: 0 0 32px; color: #52525b; font-size: 16px; line-height: 1.6;">${role === "police" ? "Thank you for applying as a Police Officer. Please use the verification code below to complete your application:" : "Thank you for registering with CrimeTrack. Please use the verification code below to complete your registration:"}</p>
               
-              <!-- OTP Box -->
-              <table role="presentation" style="width: 100%; border-collapse: collapse; margin: 32px 0; background-color: #f9fafb; border: 2px solid #e5e7eb; border-radius: 8px;">
+              <!-- OTP Code -->
+              <table role="presentation" style="width: 100%; border-collapse: collapse; margin: 0 0 32px;">
                 <tr>
-                  <td style="padding: 32px; text-align: center;">
-                    <p style="margin: 0 0 8px; color: #6b7280; font-size: 14px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px;">Your Verification Code</p>
-                    <p style="margin: 0; font-size: 48px; font-weight: 700; color: #232f3e; letter-spacing: 12px; font-family: 'Courier New', monospace;">${otp}</p>
+                  <td style="background-color: #fafafa; border: 1px solid #e4e4e7; border-radius: 8px; padding: 32px; text-align: center;">
+                    <p style="margin: 0 0 8px; color: #71717a; font-size: 14px; font-weight: 500;">Verification code</p>
+                    <p style="margin: 0; font-size: 48px; font-weight: 700; color: #18181b; letter-spacing: 8px; font-family: 'SF Mono', 'Roboto Mono', monospace;">${otp}</p>
                   </td>
                 </tr>
               </table>
               
               ${role === "police" ? `
-              <!-- Police Info Box -->
-              <table role="presentation" style="width: 100%; border-collapse: collapse; margin: 24px 0; background-color: #fef3c7; border-left: 4px solid #f59e0b; border-radius: 4px;">
-                <tr>
-                  <td style="padding: 16px 20px;">
-                    <p style="margin: 0; color: #92400e; font-size: 14px; line-height: 1.6;">📋 <strong>Next Steps:</strong> After OTP verification, your badge and credentials will be reviewed by our admin team before full access is granted.</p>
-                  </td>
-                </tr>
-              </table>
+              <p style="margin: 0 0 24px; color: #52525b; font-size: 14px; line-height: 1.6;">After verification, your badge and credentials will be reviewed by our admin team before full access is granted.</p>
               ` : ''}
               
-              <!-- Validity Info -->
-              <table role="presentation" style="width: 100%; border-collapse: collapse; margin: 24px 0; background-color: #eff6ff; border-left: 4px solid #3b82f6; border-radius: 4px;">
-                <tr>
-                  <td style="padding: 16px 20px;">
-                    <p style="margin: 0; color: #1e40af; font-size: 14px; line-height: 1.6;">⏱️ This code is valid for <strong>10 minutes</strong>. Please do not share this code with anyone.</p>
-                  </td>
-                </tr>
-              </table>
-              
-              <p style="margin: 24px 0 0; color: #6b7280; font-size: 14px; line-height: 1.6;">If you did not request this verification, please ignore this email or contact our support team.</p>
+              <p style="margin: 0 0 24px; color: #52525b; font-size: 14px; line-height: 1.6;">This code will expire in 10 minutes. If you did not request this verification, you can safely ignore this email.</p>
+            </td>
+          </tr>
+          
+          <!-- Divider -->
+          <tr>
+            <td style="padding: 0 48px;">
+              <div style="border-top: 1px solid #e4e4e7;"></div>
             </td>
           </tr>
           
           <!-- Footer -->
           <tr>
-            <td style="background-color: #f9fafb; padding: 32px 40px; border-top: 1px solid #e5e7eb;">
-              <p style="margin: 0 0 12px; color: #6b7280; font-size: 12px; line-height: 1.6;">This is an automated message from CrimeTrack Security System. Please do not reply to this email.</p>
-              <p style="margin: 0 0 12px; color: #9ca3af; font-size: 12px;">© 2026 CrimeTrack. All rights reserved.</p>
-              <p style="margin: 0; color: #9ca3af; font-size: 12px;">Secure Authentication | Professional Crime Management</p>
+            <td style="padding: 32px 48px 48px;">
+              <p style="margin: 0 0 8px; color: #71717a; font-size: 14px; line-height: 1.6;">Need help? Contact our support team.</p>
+              <p style="margin: 0; color: #a1a1aa; font-size: 12px;">&copy; 2026 CrimeTrack. All rights reserved.</p>
             </td>
           </tr>
         </table>
@@ -446,6 +438,7 @@ export const register = async (req, res) => {
 </body>
 </html>
         `,
+        text: `Hi ${username},\n\n${role === "police" ? "Thank you for applying as a Police Officer." : "Thank you for registering with CrimeTrack."}\n\nYour verification code is: ${otp}\n\n${role === "police" ? "After verification, your badge and credentials will be reviewed by our admin team before full access is granted." : "This code will expire in 10 minutes."}\n\nIf you did not request this verification, you can safely ignore this email.\n\nCrimeTrack Support`
       });
       
       console.log(`✅ OTP email successfully delivered to ${email}`);
@@ -688,72 +681,64 @@ export const forgotPassword = async (req, res) => {
 
     try {
       await getTransporter().sendMail({
-        from: `"CrimeTrack Security" <${process.env.EMAIL_FROM || process.env.EMAIL_USER}>`,
+        from: `"CrimeTrack" <${process.env.EMAIL_FROM || process.env.EMAIL_USER}>`,
         to: email,
-        subject: "CrimeTrack - Password Reset Verification Code",
+        subject: "CrimeTrack - Password Reset Code",
         html: `
 <!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Password Reset</title>
 </head>
-<body style="margin: 0; padding: 0; background-color: #f3f4f6; font-family: 'Amazon Ember', Arial, sans-serif;">
-  <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #f3f4f6;">
+<body style="margin: 0; padding: 0; background-color: #f4f4f5; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">
+  <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #f4f4f5;">
     <tr>
       <td align="center" style="padding: 40px 20px;">
-        <table role="presentation" style="max-width: 600px; width: 100%; border-collapse: collapse; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+        <table role="presentation" style="max-width: 600px; width: 100%; border-collapse: collapse; background-color: #ffffff; border-radius: 8px; overflow: hidden;">
           <!-- Header -->
           <tr>
-            <td style="background: linear-gradient(135deg, #232f3e 0%, #37475a 100%); padding: 32px 40px; text-align: center;">
-              <h1 style="margin: 0; color: #ffffff; font-size: 28px; font-weight: 700; letter-spacing: -0.5px;">CrimeTrack</h1>
-              <p style="margin: 8px 0 0; color: #9ca3af; font-size: 14px;">Professional Crime Tracking System</p>
+            <td style="background-color: #18181b; padding: 40px 48px; text-align: center;">
+              <h1 style="margin: 0; color: #ffffff; font-size: 24px; font-weight: 600;">CrimeTrack</h1>
             </td>
           </tr>
           
           <!-- Content -->
           <tr>
-            <td style="padding: 40px;">
-              <h2 style="margin: 0 0 16px; color: #232f3e; font-size: 24px; font-weight: 600;">Password Reset Request</h2>
-              <p style="margin: 0 0 24px; color: #4b5563; font-size: 16px; line-height: 1.6;">Hello,</p>
-              <p style="margin: 0 0 24px; color: #4b5563; font-size: 16px; line-height: 1.6;">We received a request to reset your password. Please use the verification code below to proceed with resetting your password:</p>
+            <td style="padding: 48px 48px 32px;">
+              <h2 style="margin: 0 0 24px; color: #18181b; font-size: 24px; font-weight: 600;">Reset your password</h2>
+              <p style="margin: 0 0 16px; color: #52525b; font-size: 16px; line-height: 1.6;">Hello,</p>
+              <p style="margin: 0 0 32px; color: #52525b; font-size: 16px; line-height: 1.6;">We received a request to reset your password. Please use the verification code below to proceed:</p>
               
-              <!-- OTP Box -->
-              <table role="presentation" style="width: 100%; border-collapse: collapse; margin: 32px 0; background-color: #f9fafb; border: 2px solid #e5e7eb; border-radius: 8px;">
+              <!-- OTP Code -->
+              <table role="presentation" style="width: 100%; border-collapse: collapse; margin: 0 0 32px;">
                 <tr>
-                  <td style="padding: 32px; text-align: center;">
-                    <p style="margin: 0 0 8px; color: #6b7280; font-size: 14px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px;">Your Verification Code</p>
-                    <p style="margin: 0; font-size: 48px; font-weight: 700; color: #232f3e; letter-spacing: 12px; font-family: 'Courier New', monospace;">${otp}</p>
+                  <td style="background-color: #fafafa; border: 1px solid #e4e4e7; border-radius: 8px; padding: 32px; text-align: center;">
+                    <p style="margin: 0 0 8px; color: #71717a; font-size: 14px; font-weight: 500;">Verification code</p>
+                    <p style="margin: 0; font-size: 48px; font-weight: 700; color: #18181b; letter-spacing: 8px; font-family: 'SF Mono', 'Roboto Mono', monospace;">${otp}</p>
                   </td>
                 </tr>
               </table>
               
-              <!-- Security Warning -->
-              <table role="presentation" style="width: 100%; border-collapse: collapse; margin: 24px 0; background-color: #fef3c7; border-left: 4px solid #f59e0b; border-radius: 4px;">
-                <tr>
-                  <td style="padding: 16px 20px;">
-                    <p style="margin: 0; color: #92400e; font-size: 14px; line-height: 1.6;">🔒 <strong>Security Notice:</strong> If you did not request a password reset, please ignore this email or contact support immediately. Your account remains secure.</p>
-                  </td>
-                </tr>
-              </table>
+              <p style="margin: 0 0 24px; color: #52525b; font-size: 14px; line-height: 1.6;">This code will expire in 10 minutes.</p>
               
-              <!-- Validity Info -->
-              <table role="presentation" style="width: 100%; border-collapse: collapse; margin: 24px 0; background-color: #eff6ff; border-left: 4px solid #3b82f6; border-radius: 4px;">
-                <tr>
-                  <td style="padding: 16px 20px;">
-                    <p style="margin: 0; color: #1e40af; font-size: 14px; line-height: 1.6;">⏱️ This code is valid for <strong>10 minutes</strong>. Please do not share this code with anyone.</p>
-                  </td>
-                </tr>
-              </table>
+              <p style="margin: 0; color: #52525b; font-size: 14px; line-height: 1.6;">If you did not request a password reset, you can safely ignore this email. Your account remains secure.</p>
+            </td>
+          </tr>
+          
+          <!-- Divider -->
+          <tr>
+            <td style="padding: 0 48px;">
+              <div style="border-top: 1px solid #e4e4e7;"></div>
             </td>
           </tr>
           
           <!-- Footer -->
           <tr>
-            <td style="background-color: #f9fafb; padding: 32px 40px; border-top: 1px solid #e5e7eb;">
-              <p style="margin: 0 0 12px; color: #6b7280; font-size: 12px; line-height: 1.6;">This is an automated message from CrimeTrack Security System. Please do not reply to this email.</p>
-              <p style="margin: 0 0 12px; color: #9ca3af; font-size: 12px;">© 2026 CrimeTrack. All rights reserved.</p>
-              <p style="margin: 0; color: #9ca3af; font-size: 12px;">Secure Authentication | Professional Crime Management</p>
+            <td style="padding: 32px 48px 48px;">
+              <p style="margin: 0 0 8px; color: #71717a; font-size: 14px; line-height: 1.6;">Need help? Contact our support team.</p>
+              <p style="margin: 0; color: #a1a1aa; font-size: 12px;">&copy; 2026 CrimeTrack. All rights reserved.</p>
             </td>
           </tr>
         </table>
@@ -763,6 +748,7 @@ export const forgotPassword = async (req, res) => {
 </body>
 </html>
         `,
+        text: `Hello,\n\nWe received a request to reset your password.\n\nYour verification code is: ${otp}\n\nThis code will expire in 10 minutes.\n\nIf you did not request a password reset, you can safely ignore this email. Your account remains secure.\n\nCrimeTrack Support`
       });
     } catch (mailErr) {
       console.error("FORGOT PASSWORD EMAIL FAILED:", mailErr);

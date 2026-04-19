@@ -1155,6 +1155,139 @@ export const getNearbyCitizens = async (req, res) => {
 };
 
 // ─────────────────────────────────────────────────────────────────
+// ALERT NEARBY CITIZENS (POST endpoint)
+// @desc    Send alert notifications to citizens near a crime location
+// @route   POST /api/report/:id/nearby-citizens
+// ─────────────────────────────────────────────────────────────────
+export const alertNearbyCitizens = async (req, res) => {
+  try {
+    // Check if req.body exists
+    if (!req.body) {
+      return res.status(400).json({ 
+        error: "Request body is required. Please send JSON data with Content-Type: application/json" 
+      });
+    }
+
+    const { userId, crimeId, message, type } = req.body;
+    const crime = await Crime.findById(req.params.id);
+    
+    if (!crime) {
+      return res.status(404).json({ error: "Crime report not found" });
+    }
+
+    // If crimeId is provided, use it; otherwise use the crime from params
+    const targetCrimeId = crimeId || req.params.id;
+    
+    // Find all verified citizens within radius
+    const radius = parseInt(req.query.radius) || 20000; // Default 20km
+    
+    let nearbyCitizens;
+    
+    // If crime has location, find citizens nearby
+    if (crime.location?.lat && crime.location?.lng) {
+      // Get all verified citizens
+      const allCitizens = await User.find({
+        role: "user",
+        isOtpVerified: true
+      }).select("_id username name email stationLocation");
+      
+      // Filter by distance
+      nearbyCitizens = [];
+      for (const citizen of allCitizens) {
+        let distance = null;
+        
+        if (citizen.stationLocation?.coordinates && citizen.stationLocation.coordinates.length === 2) {
+          const [citLng, citLat] = citizen.stationLocation.coordinates;
+          if (citLat && citLng) {
+            // Calculate distance using Haversine formula
+            const R = 6371e3; // Earth's radius in meters
+            const φ1 = crime.location.lat * Math.PI/180;
+            const φ2 = citLat * Math.PI/180;
+            const Δφ = (citLat - crime.location.lat) * Math.PI/180;
+            const Δλ = (citLng - crime.location.lng) * Math.PI/180;
+
+            const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
+                      Math.cos(φ1) * Math.cos(φ2) *
+                      Math.sin(Δλ/2) * Math.sin(Δλ/2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            distance = R * c;
+            
+            if (distance <= radius) {
+              nearbyCitizens.push(citizen);
+            }
+          }
+        } else {
+          // Include citizens without location data
+          nearbyCitizens.push(citizen);
+        }
+      }
+    } else {
+      // If no location, get all verified citizens
+      nearbyCitizens = await User.find({
+        role: "user",
+        isOtpVerified: true
+      }).select("_id username name email").limit(100);
+    }
+
+    if (!nearbyCitizens.length) {
+      return res.status(200).json({ 
+        success: true, 
+        notifiedCount: 0, 
+        message: "No citizens found to notify" 
+      });
+    }
+
+    // Create notification message
+    const alertMessage = message || `🚨 Crime Alert: A new incident has been reported in your area. Stay alert and report any suspicious activity.`;
+    const notificationType = type || "admin_alert";
+
+    // Import Notification model
+    const Notification = (await import("../Models/Notification.js")).default;
+
+    // Send notifications to all nearby citizens
+    const notifications = nearbyCitizens.map(citizen => ({
+      userId: citizen._id,
+      crimeId: targetCrimeId,
+      message: alertMessage,
+      type: notificationType,
+      sender: userId || req.user?._id,
+    }));
+
+    // Bulk insert notifications
+    await Notification.insertMany(notifications);
+
+    // Send real-time socket notifications
+    const { getIO } = await import("../socket.js");
+    const io = getIO();
+    
+    if (io) {
+      nearbyCitizens.forEach(citizen => {
+        io.to(citizen._id.toString()).emit("notification", {
+          crimeId: targetCrimeId,
+          message: alertMessage,
+          type: notificationType,
+          timestamp: new Date().toISOString()
+        });
+      });
+    }
+
+    return res.json({
+      success: true,
+      notifiedCount: nearbyCitizens.length,
+      message: `Alert sent to ${nearbyCitizens.length} citizens`,
+      citizens: nearbyCitizens.map(c => ({
+        id: c._id,
+        name: c.name || c.username,
+        email: c.email
+      }))
+    });
+  } catch (error) {
+    console.error("alertNearbyCitizens error:", error);
+    return res.status(500).json({ error: "Failed to send alerts to citizens" });
+  }
+};
+
+// ─────────────────────────────────────────────────────────────────
 // SEND MANUAL SAFE ALERT (Admin Manual Action)
 // @desc    Admin manually triggers a SAFE ALERT to specific users or all nearby
 // @route   POST /api/report/:id/broadcast-safe-alert

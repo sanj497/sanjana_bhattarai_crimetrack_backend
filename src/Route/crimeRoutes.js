@@ -18,6 +18,7 @@ import {
   getCrimeById,
   getNearbyPolice,
   getNearbyCitizens,
+  alertNearbyCitizens,
   sendManualSafeAlert,
   broadcastCommunityAlert,
   getAlertQueue
@@ -55,6 +56,7 @@ router.post("/:id/verify",    authMiddleware, adminMiddleware,      verifyCrimeR
 router.post("/:id/forward",   authMiddleware, adminMiddleware,      forwardToPolice);
 router.get("/:id/nearby-police", authMiddleware, adminMiddleware,   getNearbyPolice);
 router.get("/:id/nearby-citizens", authMiddleware, adminMiddleware, getNearbyCitizens);
+router.post("/:id/nearby-citizens", authMiddleware, adminMiddleware, alertNearbyCitizens);
 router.post("/:id/broadcast-safe-alert", authMiddleware, adminMiddleware, sendManualSafeAlert);
 router.post("/:id/broadcast-community-alert", authMiddleware, adminMiddleware, broadcastCommunityAlert);
 

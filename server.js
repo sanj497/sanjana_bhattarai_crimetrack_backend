@@ -83,6 +83,9 @@ app.use((req, res, next) => {
 
 app.use(helmet()); // Security headers
 
+app.use(express.json({ limit: "50mb" }));
+app.use(express.urlencoded({ extended: true, limit: "50mb" }));
+
 // Custom Express 5-compatible NoSQL Injection Prevention
 const cleanNoSQL = (obj) => {
   if (obj && typeof obj === "object") {
@@ -102,9 +105,6 @@ app.use((req, res, next) => {
   cleanNoSQL(req.params);
   next();
 });
-
-app.use(express.json({ limit: "50mb" }));
-app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 
 // Health check endpoint
 app.get("/api/ping", (req, res) => {

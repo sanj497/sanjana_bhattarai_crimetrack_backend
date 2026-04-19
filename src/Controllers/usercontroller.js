@@ -932,3 +932,15 @@ export const uploadProfilePicture = async (req, res) => {
     res.status(500).json({ msg: "Server error", error: error.message });
   }
 };
+
+
+export const logoutUser = async (req, res) => {
+  try {
+    res.clearCookie("token");
+    res.json({ msg: "Logged out successfully" });
+  } catch (error) {
+    console.error("logoutUser error:", error);
+    res.status(500).json({ msg: "Server error", error: error.message });
+  }
+};
+//logout user

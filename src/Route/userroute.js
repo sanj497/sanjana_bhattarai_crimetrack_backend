@@ -1,4 +1,4 @@
-import { register, registerStaff, login, verifyOtp, updateUserRole, getAllUsers, forgotPassword, resetPassword, updateProfile, verifyPoliceApplication, deleteUser, getProfile, uploadProfilePicture } from '../Controllers/usercontroller.js';
+import { register, registerStaff, login, verifyOtp, updateUserRole, getAllUsers, forgotPassword, resetPassword, updateProfile, verifyPoliceApplication, deleteUser, getProfile, uploadProfilePicture, logoutUser } from '../Controllers/usercontroller.js';
 import express from 'express';
 import { isAdmin, verifyToken } from '../middleware/authMiddleware.js';
 import { upload } from '../middleware/multer.js';
@@ -15,6 +15,8 @@ router.get("/profile", verifyToken, getProfile);
 router.put("/profile", verifyToken, updateProfile);
 router.post("/profile/picture", verifyToken, upload.single("profilePicture"), uploadProfilePicture);
 router.get("/users", verifyToken, isAdmin, getAllUsers);
+router.post("/logout", verifyToken, logoutUser);
+
 
 router.put(
   "/update-role/:userId",

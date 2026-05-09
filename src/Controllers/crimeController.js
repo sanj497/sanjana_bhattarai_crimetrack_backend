@@ -247,7 +247,9 @@ export const createCrimeReport = async (req, res) => {
         });
         
         notifiedCitizens = nearestCitizens.length;
-        const citizenMessage = `⚠️ COMMUNITY SAFETY ALERT: A ${crime.crimeType} was just reported near your location at ${crime.location.address}. Please stay vigilant and safe.`;
+        const type = crime.crimeType || "incident";
+        const addr = crime.location?.address || "your vicinity";
+        const citizenMessage = `⚠️ COMMUNITY SAFETY ALERT: A ${type} was just reported near your location at ${addr}. Please stay vigilant and safe.`;
 
         if (notifiedCitizens > 0) {
           const citizenIds = nearestCitizens.map(c => c._id);
@@ -1378,7 +1380,7 @@ export const broadcastCommunityAlert = async (req, res) => {
     if (!crime) return res.status(404).json({ error: "Case not found" });
 
     // 1. Find all potential users to see if verification is the blocker
-    const allUsers = await User.find({ role: "user" }, "_id email isOtpVerified");
+    const allUsers = await User.find({ role: "user" }, "_id email username isOtpVerified");
     const verifiedUsers = allUsers.filter(u => u.isOtpVerified);
     
     console.log(`📡 Community Alert: Found ${allUsers.length} total citizens, ${verifiedUsers.length} are verified via OTP.`);

@@ -170,6 +170,7 @@ export const sendCrimeAlertEmail = async (user, crime, customMessage = null, cus
     }
 
     console.log(`📧 Attempting to send crime alert email to: ${user.email}`);
+    console.log(`📧 Message Snippet: ${customMessage ? customMessage.substring(0, 50) + "..." : "Default Template"}`);
 
     // Determine the default subject based on the message content if not provided
     const isVerified = customMessage && customMessage.includes("verified");

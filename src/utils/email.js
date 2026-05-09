@@ -36,7 +36,10 @@ export const getTransporter = () => {
             maxConnections: 5,
             maxMessages: 100,
             rateDelta: 1000, // 1 second
-            rateLimit: 5 // Max 5 emails per second
+            rateLimit: 5, // Max 5 emails per second
+            connectionTimeout: 5000,
+            greetingTimeout: 5000,
+            socketTimeout: 5000
           }
         : {
             service: "gmail",
@@ -47,7 +50,10 @@ export const getTransporter = () => {
             // Production email settings
             pool: true,
             maxConnections: 5,
-            maxMessages: 100
+            maxMessages: 100,
+            connectionTimeout: 5000,
+            greetingTimeout: 5000,
+            socketTimeout: 5000
           }
     );
 

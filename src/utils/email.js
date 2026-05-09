@@ -9,62 +9,72 @@ export const getTransporter = () => {
       throw new Error("Email credentials are missing. Set EMAIL_USER and EMAIL_PASS in backend environment variables.");
     }
 
-    // Handle EMAIL_PASS with or without quotes
-    let emailPass = process.env.EMAIL_PASS;
-    if (emailPass && (emailPass.startsWith('"') || emailPass.startsWith("'"))) {
+    // Handle EMAIL_PASS: remove quotes AND spaces (Gmail app passwords often have spaces for readability)
+    let emailPass = process.env.EMAIL_PASS.trim();
+    if (emailPass.startsWith('"') || emailPass.startsWith("'")) {
       emailPass = emailPass.slice(1, -1);
     }
+    // Remove all whitespace - Gmail app passwords are 16 chars without spaces
+    emailPass = emailPass.replace(/\s+/g, '');
 
+    const isGmail = process.env.EMAIL_HOST && process.env.EMAIL_HOST.includes("gmail.com");
     const hasCustomSmtp =
       process.env.EMAIL_HOST && process.env.EMAIL_PORT && process.env.EMAIL_SECURE !== undefined;
 
-    transporterInstance = nodemailer.createTransport(
-      hasCustomSmtp
-        ? {
-            host: process.env.EMAIL_HOST,
-            port: Number(process.env.EMAIL_PORT),
-            secure: process.env.EMAIL_SECURE === "true", // true for port 465, false for 587
-            auth: {
-              user: process.env.EMAIL_USER,
-              pass: emailPass,
-            },
-            // Production email settings to avoid spam
-            tls: {
-              rejectUnauthorized: false // Allow self-signed certs
-            },
-            pool: true, // Use connection pooling
-            maxConnections: 10,
-            maxMessages: 1000,
-            rateDelta: 1000, // 1 second
-            rateLimit: 10, // Max 5 emails per second
-            connectionTimeout: 5000,
-            greetingTimeout: 5000,
-            socketTimeout: 5000
-          }
-        : {
-            service: "gmail",
-            auth: {
-              user: process.env.EMAIL_USER,
-              pass: emailPass,
-            },
-            // Production email settings
-            pool: true,
-            maxConnections: 5,
-            maxMessages: 100,
-            connectionTimeout: 5000,
-            greetingTimeout: 5000,
-            socketTimeout: 5000
-          }
-    );
-
-    transporterReady = transporterInstance
-      .verify()
-      .then(() => {
-        console.log("✅ Email transporter is ready to send messages");
-      })
-      .catch((error) => {
-        console.error("❌ Email transporter verification failed:", error.message);
+    // Prioritize 'service: gmail' for Gmail addresses as it's more robust in Nodemailer
+    if (isGmail) {
+      console.log("📧 Using optimized Gmail service configuration");
+      transporterInstance = nodemailer.createTransport({
+        service: "gmail",
+        auth: {
+          user: process.env.EMAIL_USER,
+          pass: emailPass,
+        },
+        pool: true,
+        maxConnections: 5,
+        maxMessages: 100,
       });
+    } else if (hasCustomSmtp) {
+      console.log(`📧 Using custom SMTP configuration: ${process.env.EMAIL_HOST}`);
+      transporterInstance = nodemailer.createTransport({
+        host: process.env.EMAIL_HOST,
+        port: Number(process.env.EMAIL_PORT),
+        secure: process.env.EMAIL_SECURE === "true", // true for port 465, false for 587
+        auth: {
+          user: process.env.EMAIL_USER,
+          pass: emailPass,
+        },
+        tls: {
+          rejectUnauthorized: false
+        },
+        pool: true,
+        maxConnections: 10,
+        rateLimit: 10,
+      });
+    } else {
+      // Fallback to basic Gmail if nothing else is specified but we have credentials
+      console.log("📧 Using fallback Gmail configuration");
+      transporterInstance = nodemailer.createTransport({
+        service: "gmail",
+        auth: {
+          user: process.env.EMAIL_USER,
+          pass: emailPass,
+        },
+      });
+    }
+
+    // Capture the verification promise properly without a local .catch() 
+    // so ensureTransporterReady can actually catch the failure
+    transporterReady = transporterInstance.verify();
+    
+    // Log success independently
+    transporterReady.then(() => {
+      console.log("✅ Email transporter is ready to send messages");
+    }).catch((error) => {
+      console.error("❌ Email transporter verification failed:", error.message);
+      // We don't rethrow here to avoid unhandled rejections if no one is awaiting yet,
+      // but ensureTransporterReady WILL catch it because it awaits this same promise.
+    });
   }
   return transporterInstance;
 };

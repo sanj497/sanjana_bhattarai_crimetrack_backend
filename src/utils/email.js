@@ -23,16 +23,19 @@ export const getTransporter = () => {
 
     // Prioritize 'service: gmail' for Gmail addresses as it's more robust in Nodemailer
     if (isGmail) {
-      console.log("📧 Using optimized Gmail service configuration");
+      console.log("📧 Using direct manual SMTP configuration for Gmail (Port 465/SSL)");
       transporterInstance = nodemailer.createTransport({
-        service: "gmail",
+        host: "smtp.gmail.com",
+        port: 465,
+        secure: true, // Use SSL for port 465
         auth: {
           user: process.env.EMAIL_USER,
           pass: emailPass,
         },
-        pool: true,
-        maxConnections: 5,
-        maxMessages: 100,
+        // Performance & Reliability settings
+        pool: false, // Individual connections are often more reliable for low-volume apps
+        timeout: 10000, // 10s timeout
+        connectionTimeout: 10000,
       });
     } else if (hasCustomSmtp) {
       console.log(`📧 Using custom SMTP configuration: ${process.env.EMAIL_HOST}`);

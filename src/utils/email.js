@@ -93,7 +93,7 @@ export const ensureTransporterReady = async () => {
 };
 
 // Helper for professional email templates
-const getEmailTemplate = (crime, customMessage = null) => {
+const getEmailTemplate = (crime, customMessage = null, user = null) => {
   const priorityColors = {
     Critical: "#ef4444",
     High: "#f97316",
@@ -101,6 +101,7 @@ const getEmailTemplate = (crime, customMessage = null) => {
     Low: "#10b981"
   };
   const color = priorityColors[crime.priority] || "#3b82f6";
+  const userName = user?.username || user?.name || "Citizen";
   const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
   const mapLink = crime.location?.lat ? `https://www.google.com/maps?q=${crime.location.lat},${crime.location.lng}` : "#";
 
@@ -136,6 +137,7 @@ const getEmailTemplate = (crime, customMessage = null) => {
           ${crime.priority || 'Medium'} Priority Case
         </div>
         
+        <p style="color: #1e293b; font-size: 18px; font-weight: 600; margin: 0 0 8px;">Hi ${userName},</p>
         <p style="color: #4b5563; line-height: 1.6; margin: 0 0 24px; font-size: 15px;">${customMessage}</p>
 
         <!-- Action Button -->
@@ -416,7 +418,7 @@ export const sendCrimeAlertEmail = async (user, crime, customMessage = null, cus
       `;
     } else {
       // Use the standard template for other notifications
-      html = getEmailTemplate(crime, customMessage);
+      html = getEmailTemplate(crime, customMessage, user);
     }
 
     const transporter = getTransporter();

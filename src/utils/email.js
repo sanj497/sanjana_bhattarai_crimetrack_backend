@@ -38,8 +38,8 @@ export const getTransporter = () => {
           
           transporterInstance = nodemailer.createTransport({
             host: address,
-            port: 465,
-            secure: true, 
+            port: 587,
+            secure: false, // STARTTLS
             auth: {
               user: process.env.EMAIL_USER,
               pass: emailPass,
@@ -56,17 +56,15 @@ export const getTransporter = () => {
           await transporterInstance.verify();
           console.log("✅ Email transporter is ready to send messages");
         } catch (err) {
-          console.error("❌ Gmail setup failed, falling back to hostname:", err.message);
+          console.error("❌ Gmail setup failed, trying service: gmail fallback:", err.message);
           transporterInstance = nodemailer.createTransport({
-            host: "smtp.gmail.com",
-            port: 465,
-            secure: true,
+            service: "gmail",
+            family: 4,
+            localAddress: '0.0.0.0',
             auth: {
               user: process.env.EMAIL_USER,
               pass: emailPass,
             },
-            family: 4,
-            localAddress: '0.0.0.0',
           });
           await transporterInstance.verify();
         }

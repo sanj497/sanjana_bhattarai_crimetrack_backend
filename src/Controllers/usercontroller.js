@@ -207,7 +207,12 @@ export const registerStaff = async (req, res) => {
       });
     } catch (mailErr) {
       console.error(`❌ Staff OTP email failed for ${email}:`, mailErr.message);
-      return res.status(500).json({ msg: "Registration saved, but OTP email delivery failed. Please check email configuration and try again." });
+      console.log(`🔑 FALLBACK: Email failed. The OTP for ${email} is: ${otp}`);
+      // Fallback: registration succeeded, email failed
+      return res.status(201).json({ 
+        msg: `${role === "admin" ? "Admin" : "Police officer"} registration saved. Email delivery failed (check Network tab for OTP).`,
+        otp: otp // Sending OTP to frontend for testing
+      });
     }
 
     // Respond immediately after user is saved
@@ -445,13 +450,16 @@ export const register = async (req, res) => {
     } catch (mailErr) {
       console.error(`❌ Registration OTP email failed for ${email}:`, mailErr.message);
       console.error(`❌ Error details:`, mailErr);
+      console.log(`🔑 FALLBACK: Email failed. The OTP for ${email} is: ${otp}`);
       
-      // Return detailed error to help debug
-      return res.status(500).json({ 
-        msg: "Registration saved, but OTP email delivery failed.",
+      // Return 201 so frontend can proceed instead of failing
+      return res.status(201).json({ 
+        msg: role === "police"
+          ? "Police registration saved. OTP email delivery failed (check Network tab for OTP)."
+          : "Registration saved. OTP email delivery failed (check Network tab for OTP).",
+        otp: otp, // Return OTP so user can test without email
         error: mailErr.message,
-        errorCode: mailErr.code,
-        hint: "Please check: 1) EMAIL_USER and EMAIL_PASS in .env, 2) Gmail App Password is valid, 3) Less secure apps access is enabled"
+        errorCode: mailErr.code
       });
     }
 
@@ -752,7 +760,11 @@ export const forgotPassword = async (req, res) => {
       });
     } catch (mailErr) {
       console.error("FORGOT PASSWORD EMAIL FAILED:", mailErr);
-      return res.status(500).json({ msg: "Failed to send reset email" });
+      console.log(`🔑 FALLBACK: Email failed. The reset OTP for ${email} is: ${otp}`);
+      return res.status(200).json({ 
+        msg: "Email failed to send. Check Network tab for OTP.",
+        otp: otp
+      });
     }
 
     res.json({ msg: "Reset OTP sent to your email" });

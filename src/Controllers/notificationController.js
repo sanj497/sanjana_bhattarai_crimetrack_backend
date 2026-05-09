@@ -35,7 +35,8 @@ export const markAsRead = async (req, res) => {
   try {
     await Notification.findOneAndUpdate(
       { _id: req.params.id, userId: req.user._id }, // ← scoped to owner
-      { isRead: true }
+      { isRead: true },
+      { returnDocument: 'after' }
     );
     return res.json({ success: true });
   } catch (error) {

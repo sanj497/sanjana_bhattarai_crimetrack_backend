@@ -33,10 +33,10 @@ export const getTransporter = () => {
               rejectUnauthorized: false // Allow self-signed certs
             },
             pool: true, // Use connection pooling
-            maxConnections: 5,
-            maxMessages: 100,
+            maxConnections: 10,
+            maxMessages: 1000,
             rateDelta: 1000, // 1 second
-            rateLimit: 5, // Max 5 emails per second
+            rateLimit: 10, // Max 5 emails per second
             connectionTimeout: 5000,
             greetingTimeout: 5000,
             socketTimeout: 5000

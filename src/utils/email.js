@@ -30,11 +30,11 @@ export const getTransporter = () => {
 
     // Prioritize 'service: gmail' for Gmail addresses as it's more robust in Nodemailer
     if (isGmail) {
-      console.log("📧 Using manual SMTP configuration for Gmail (STARTTLS/Port 587)");
+      console.log("📧 Using manual SMTP configuration for Gmail (SSL/TLS - Port 465)");
       transporterInstance = nodemailer.createTransport({
         host: "smtp.gmail.com",
-        port: 587,
-        secure: false, 
+        port: 465,
+        secure: true, // Use SSL/TLS for port 465
         auth: {
           user: process.env.EMAIL_USER,
           pass: emailPass,
@@ -42,12 +42,12 @@ export const getTransporter = () => {
         // Force IPv4 to resolve ENETUNREACH IPv6 issues
         family: 4, 
         // Performance & Reliability settings
-        pool: true, // Use pooling for Gmail for better performance
+        pool: true, 
         maxConnections: 5,
         maxMessages: 100,
-        timeout: 20000,
-        connectionTimeout: 20000,
-        greetingTimeout: 20000,
+        timeout: 30000, // Increased to 30s
+        connectionTimeout: 30000,
+        greetingTimeout: 30000,
       });
     } else if (hasCustomSmtp) {
       console.log(`📧 Using custom SMTP configuration: ${process.env.EMAIL_HOST}`);

@@ -12,7 +12,14 @@ import { getIO } from "../socket.js";
 // Helper function to create notifications for specific roles
 const notifyByRole = async (role, crimeId, message) => {
   const users = await User.find({ role }, "_id");
-  const docs = users.map((user) => ({ userId: user._id, crimeId, message }));
+  const type = role === "admin" ? "admin_alert" : role === "police" ? "police_alert" : "citizen_alert";
+  const docs = users.map((user) => ({ 
+    userId: user._id, 
+    crimeId, 
+    message, 
+    type,
+    expiresAt: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000)
+  }));
   await Notification.insertMany(docs, { ordered: false });
 
   // Real-time notification via Socket.io
@@ -603,7 +610,7 @@ export const forwardToPolice = async (req, res) => {
       const nearbyCitizens = await User.find({
         role: "user",
         isOtpVerified: true,
-        location: {
+        "stationLocation.coordinates": {
           $near: {
             $geometry: { type: "Point", coordinates: crime.location.coordinates },
             $maxDistance: 10000 // 10km
@@ -1315,7 +1322,7 @@ export const sendManualSafeAlert = async (req, res) => {
       const nearby = await User.find({
         role: "user",
         _id: { $ne: crime.userId }, // Exclude the original reporter
-        location: {
+        "stationLocation.coordinates": {
           $near: {
             $geometry: { type: "Point", coordinates: crime.location.coordinates },
             $maxDistance: 20000 // 20km

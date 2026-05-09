@@ -1377,10 +1377,18 @@ export const broadcastCommunityAlert = async (req, res) => {
     const crime = await Crime.findById(req.params.id);
     if (!crime) return res.status(404).json({ error: "Case not found" });
 
-    // 1. Target all verified users
-    const verifiedUsers = await User.find({ role: "user", isOtpVerified: true }, "_id email username");
+    // 1. Find all potential users to see if verification is the blocker
+    const allUsers = await User.find({ role: "user" }, "_id email isOtpVerified");
+    const verifiedUsers = allUsers.filter(u => u.isOtpVerified);
+    
+    console.log(`📡 Community Alert: Found ${allUsers.length} total citizens, ${verifiedUsers.length} are verified via OTP.`);
+    
     if (!verifiedUsers.length) {
-      return res.status(400).json({ error: "No verified citizens found in database." });
+      console.warn("⚠️ No verified citizens found. Notifications will not be sent to protect against spam.");
+      return res.status(400).json({ 
+        error: "No verified citizens found in database. Users must verify their email via OTP to receive community alerts.",
+        totalUnverified: allUsers.length
+      });
     }
 
     const alertTitle = `🚨 CRIME ALERT`;
@@ -1446,7 +1454,7 @@ export const getAlertQueue = async (req, res) => {
       if (crime.location && crime.location.coordinates) {
         nearbyCount = await User.countDocuments({
           role: "user",
-          location: {
+          "stationLocation.coordinates": {
             $near: {
               $geometry: { type: "Point", coordinates: crime.location.coordinates },
               $maxDistance: 10000 // 10km

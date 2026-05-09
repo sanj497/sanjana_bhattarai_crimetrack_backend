@@ -1,4 +1,11 @@
 import dotenv from "dotenv";
+import dns from "dns";
+
+// Critical: Force IPv4 preference globally to resolve ENETUNREACH IPv6 issues on Render/Local
+if (dns.setDefaultResultOrder) {
+  dns.setDefaultResultOrder('ipv4first');
+}
+
 dotenv.config({ path: "./src/.env" });
 
 import express from "express";

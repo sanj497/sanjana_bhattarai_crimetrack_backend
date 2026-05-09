@@ -1,5 +1,8 @@
 import nodemailer from "nodemailer";
 import dns from "dns";
+import { promisify } from "util";
+
+const lookup = promisify(dns.lookup);
 
 // Prefer IPv4 for DNS resolution to avoid ENETUNREACH IPv6 issues on certain networks
 if (dns.setDefaultResultOrder) {
@@ -16,39 +19,58 @@ export const getTransporter = () => {
       throw new Error("Email credentials are missing. Set EMAIL_USER and EMAIL_PASS in backend environment variables.");
     }
 
-    // Handle EMAIL_PASS: remove quotes AND spaces (Gmail app passwords often have spaces for readability)
     let emailPass = process.env.EMAIL_PASS.trim();
     if (emailPass.startsWith('"') || emailPass.startsWith("'")) {
       emailPass = emailPass.slice(1, -1);
     }
-    // Remove all whitespace - Gmail app passwords are 16 chars without spaces
     emailPass = emailPass.replace(/\s+/g, '');
 
     const isGmail = process.env.EMAIL_HOST && process.env.EMAIL_HOST.includes("gmail.com");
     const hasCustomSmtp =
       process.env.EMAIL_HOST && process.env.EMAIL_PORT && process.env.EMAIL_SECURE !== undefined;
 
-    // Prioritize 'service: gmail' for Gmail addresses as it's more robust in Nodemailer
     if (isGmail) {
-      console.log("📧 Using manual SMTP configuration for Gmail (SSL/TLS - Port 465)");
-      transporterInstance = nodemailer.createTransport({
-        host: "smtp.gmail.com",
-        port: 465,
-        secure: true, // Use SSL/TLS for port 465
-        auth: {
-          user: process.env.EMAIL_USER,
-          pass: emailPass,
-        },
-        // Force IPv4 to resolve ENETUNREACH IPv6 issues
-        family: 4, 
-        // Performance & Reliability settings
-        pool: true, 
-        maxConnections: 5,
-        maxMessages: 100,
-        timeout: 30000, // Increased to 30s
-        connectionTimeout: 30000,
-        greetingTimeout: 30000,
-      });
+      console.log("📧 Resolving smtp.gmail.com to IPv4 for Render compatibility...");
+      transporterReady = (async () => {
+        try {
+          const { address } = await lookup("smtp.gmail.com", { family: 4 });
+          console.log(`📧 Gmail resolved to IPv4: ${address}`);
+          
+          transporterInstance = nodemailer.createTransport({
+            host: address,
+            port: 465,
+            secure: true, 
+            auth: {
+              user: process.env.EMAIL_USER,
+              pass: emailPass,
+            },
+            servername: "smtp.gmail.com",
+            family: 4, 
+            localAddress: '0.0.0.0',
+            pool: true, 
+            maxConnections: 5,
+            timeout: 30000,
+            connectionTimeout: 30000,
+          });
+          
+          await transporterInstance.verify();
+          console.log("✅ Email transporter is ready to send messages");
+        } catch (err) {
+          console.error("❌ Gmail setup failed, falling back to hostname:", err.message);
+          transporterInstance = nodemailer.createTransport({
+            host: "smtp.gmail.com",
+            port: 465,
+            secure: true,
+            auth: {
+              user: process.env.EMAIL_USER,
+              pass: emailPass,
+            },
+            family: 4,
+            localAddress: '0.0.0.0',
+          });
+          await transporterInstance.verify();
+        }
+      })();
     } else if (hasCustomSmtp) {
       console.log(`📧 Using custom SMTP configuration: ${process.env.EMAIL_HOST}`);
       transporterInstance = nodemailer.createTransport({
@@ -59,7 +81,8 @@ export const getTransporter = () => {
           user: process.env.EMAIL_USER,
           pass: emailPass,
         },
-        family: 4, // Force IPv4 for custom SMTP too
+        family: 4, 
+        localAddress: '0.0.0.0',
         tls: {
           rejectUnauthorized: false
         },
@@ -67,31 +90,26 @@ export const getTransporter = () => {
         maxConnections: 10,
         rateLimit: 10,
       });
+      transporterReady = transporterInstance.verify();
     } else {
-      // Fallback to basic Gmail if nothing else is specified but we have credentials
       console.log("📧 Using fallback Gmail configuration (Forced IPv4)");
       transporterInstance = nodemailer.createTransport({
         service: "gmail",
-        family: 4, // Force IPv4
+        family: 4,
+        localAddress: '0.0.0.0',
         auth: {
           user: process.env.EMAIL_USER,
           pass: emailPass,
         },
       });
+      transporterReady = transporterInstance.verify();
     }
 
-    // Capture the verification promise properly without a local .catch() 
-    // so ensureTransporterReady can actually catch the failure
-    transporterReady = transporterInstance.verify();
-    
-    // Log success independently
-    transporterReady.then(() => {
-      console.log("✅ Email transporter is ready to send messages");
-    }).catch((error) => {
-      console.error("❌ Email transporter verification failed:", error.message);
-      // We don't rethrow here to avoid unhandled rejections if no one is awaiting yet,
-      // but ensureTransporterReady WILL catch it because it awaits this same promise.
-    });
+    if (transporterReady) {
+      transporterReady.catch((error) => {
+        console.error("❌ Email transporter verification failed:", error.message);
+      });
+    }
   }
   return transporterInstance;
 };

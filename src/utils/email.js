@@ -32,6 +32,8 @@ export const getTransporter = () => {
           user: process.env.EMAIL_USER,
           pass: emailPass,
         },
+        // Force IPv4 to resolve ENETUNREACH IPv6 issues
+        family: 4, 
         // Performance & Reliability settings
         pool: false, // Individual connections are often more reliable for low-volume apps
         timeout: 10000, // 10s timeout

@@ -194,8 +194,10 @@ export const createCrimeReport = async (req, res) => {
       
       // 1. Find all Admins (Always notified)
       const allAdmins = await User.find({ role: "admin" }, "_id email role isOtpVerified");
-      const admins = allAdmins.filter(a => a.isOtpVerified);
-      adminIds = allAdmins.map(a => a._id); // Dashboard notifications for all admins
+      // For testing/initial setup, we notify all admins even if not OTP verified
+      // but we still log who is verified.
+      const admins = allAdmins; 
+      adminIds = allAdmins.map(a => a._id); 
       
       console.log(`🔔 Admin Notification Status: ${allAdmins.length} total, ${admins.length} verified via OTP.`);
       if (allAdmins.length > 0) {

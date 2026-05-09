@@ -229,12 +229,13 @@ export const sendCrimeAlertEmail = async (user, crime, customMessage = null, cus
 
     const transporter = getTransporter();
     await transporter.sendMail({
-      from: fromAddress,
+      from: `"CrimeTrack Alerts" <${fromAddress}>`,
       to: user.email,
       subject: emailSubject,
       text: customMessage || `Crime Alert: ${crime.title}`,
       html: customHtml || html,
     });
+    console.log(`📨 Email sent successfully to: ${user.email}`);
   } catch (err) {
     console.error(`❌ Email error for ${user.email || "Unknown"}:`, err.message);
   }

@@ -186,9 +186,14 @@ export const createCrimeReport = async (req, res) => {
       console.log("🔔 Notifying administrators of new report...");
       
       // 1. Find all Admins (Always notified)
-      const admins = await User.find({ role: "admin", isOtpVerified: true }, "_id email role");
-      adminIds = admins.map(a => a._id);
-      console.log(`🔔 Found ${admins.length} admins to notify via email.`);
+      const allAdmins = await User.find({ role: "admin" }, "_id email role isOtpVerified");
+      const admins = allAdmins.filter(a => a.isOtpVerified);
+      adminIds = allAdmins.map(a => a._id); // Dashboard notifications for all admins
+      
+      console.log(`🔔 Admin Notification Status: ${allAdmins.length} total, ${admins.length} verified via OTP.`);
+      if (allAdmins.length > 0) {
+        console.log(`📧 Admins to receive email: ${admins.map(a => a.email).join(", ") || "NONE (No verified admins)"}`);
+      }
       
       const adminMessage = `📋 New crime report has been submitted. Please check your dashboard to review, verify, and take necessary action.`;
 

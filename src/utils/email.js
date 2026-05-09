@@ -483,3 +483,58 @@ export const sendSOSEmail = async (guardian, citizen, coords) => {
     console.error(`❌ SOS Email error for ${guardian.email}:`, err.message);
   }
 };
+
+// Send complaint status/alert email
+export const sendComplaintEmail = async (user, complaint, customMessage = null) => {
+  try {
+    await ensureTransporterReady();
+    
+    if (!user || !user.email) return;
+
+    const fromAddress = process.env.EMAIL_FROM || process.env.EMAIL_USER;
+    const isStatusUpdate = customMessage && (customMessage.includes("Verified") || customMessage.includes("Progress") || customMessage.includes("Solved"));
+    const subject = isStatusUpdate ? "📋 Complaint Status Update" : "📩 New Complaint Filed";
+
+    const html = `
+      <div style="font-family: 'Inter', system-ui, sans-serif; max-width: 600px; margin: 0 auto; background-color: #f9fafb; border-radius: 16px; overflow: hidden; border: 1px solid #e5e7eb; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
+        <div style="background: linear-gradient(135deg, #6366f1 0%, #4338ca 100%); padding: 32px 24px; text-align: center;">
+          <h1 style="color: #ffffff; margin: 0; font-size: 24px; font-weight: 800; letter-spacing: -0.025em;">
+            ${isStatusUpdate ? "📋 STATUS UPDATE" : "📩 NEW COMPLAINT"}
+          </h1>
+        </div>
+        <div style="padding: 32px 24px; background-color: #ffffff;">
+          <div style="display: inline-block; padding: 4px 12px; border-radius: 9999px; background-color: #e0e7ff; color: #4338ca; font-size: 12px; font-weight: 700; text-transform: uppercase; margin-bottom: 16px;">
+            Category: ${complaint.category || 'General'}
+          </div>
+          <p style="color: #4b5563; line-height: 1.6; margin: 0 0 24px; font-size: 15px;">${customMessage || 'A complaint has been updated in the system.'}</p>
+          <div style="background-color: #f8fafc; border-radius: 12px; padding: 20px; border: 1px solid #e2e8f0; margin-bottom: 24px;">
+            <p style="margin: 0 0 8px; color: #64748b; font-size: 12px; font-weight: 600; text-transform: uppercase;">Complaint Details</p>
+            <p style="margin: 0; color: #1e293b; font-weight: 600;">${complaint.title}</p>
+            <p style="margin: 8px 0 0; color: #475569; font-size: 14px;">Status: <strong>${complaint.status || 'Pending'}</strong></p>
+          </div>
+          <div style="text-align: center;">
+            <a href="${process.env.FRONTEND_URL || "http://localhost:5173"}/citizen" style="display: inline-block; background-color: #4338ca; color: #ffffff; padding: 14px 32px; border-radius: 8px; font-weight: 600; text-decoration: none; font-size: 14px;">
+              View Dashboard
+            </a>
+          </div>
+        </div>
+        <div style="padding: 24px; background-color: #f8fafc; border-top: 1px solid #e5e7eb; text-align: center;">
+          <p style="color: #94a3b8; font-size: 11px; margin: 0;">© 2026 CrimeTrack. All rights reserved.</p>
+        </div>
+      </div>
+    `;
+
+    const transporter = getTransporter();
+    await transporter.sendMail({
+      from: `"CrimeTrack Complaints" <${fromAddress}>`,
+      to: user.email,
+      subject: subject,
+      text: customMessage || `Complaint Update: ${complaint.title}. Status: ${complaint.status}.`,
+      html: html,
+    });
+
+    console.log(`✅ Complaint Email sent to ${user.email} (Subject: ${subject})`);
+  } catch (err) {
+    console.error(`❌ Complaint Email error for ${user.email || "Unknown"}:`, err.message);
+  }
+};

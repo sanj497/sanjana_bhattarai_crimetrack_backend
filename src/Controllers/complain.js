@@ -1,7 +1,7 @@
 import Complaint from "../Models/Complaint.js";
 import User from "../Models/usermodel.js";
 import Notification from "../Models/Notification.js";
-import { getTransporter } from "../utils/email.js";
+import { sendComplaintEmail } from "../utils/email.js";
 import { getIO } from "../socket.js";
 
 // ─── USER: Submit a new complaint ───────────────────────────────────────────
@@ -60,26 +60,10 @@ export const submitComplaint = async (req, res) => {
       }
 
       // 3. Email Alert to Admins
-      adminUsers.forEach(admin => {
-        getTransporter().sendMail({
-          from: `"CrimeTrack Complaints" <${process.env.EMAIL_USER}>`,
-          to: admin.email,
-          subject: "📬 New User Complaint Submitted",
-          html: `
-            <div style="font-family: sans-serif; padding: 24px; max-width: 600px; margin: auto; border: 1px solid #e5e7eb; border-radius: 12px; background-color: #ffffff;">
-              <h2 style="color: #4f46e5; margin-bottom: 16px;">New Complaint Received</h2>
-              <p style="color: #374151;">A new user complaint has been submitted and requires review.</p>
-              <div style="background-color: #f9fafb; padding: 16px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #4f46e5;">
-                <p><strong>Title:</strong> ${title}</p>
-                <p><strong>Category:</strong> ${category}</p>
-                <p><strong>Submitted by:</strong> ${req.user.username} (${req.user.email})</p>
-                <p><strong>Description:</strong> ${description}</p>
-              </div>
-              <p style="font-size: 13px; color: #6b7280;">Please log in to the admin dashboard to take action.</p>
-            </div>
-          `
-        }).catch(err => console.error("Admin complaint email failed:", err.message));
-      });
+      for (const admin of adminUsers) {
+        await sendComplaintEmail(admin, complaint, message)
+          .catch(err => console.error("Admin complaint email failed:", err.message));
+      }
 
     } catch (err) {
       console.error("Complaint notification failed:", err.message);
@@ -166,6 +150,18 @@ export const updateComplaintStatus = async (req, res) => {
     if (assignedOfficer) complaint.assignedOfficer = assignedOfficer;
 
     await complaint.save();
+    
+    // ── PROFESSIONAL BROADCAST: Notify User ────────────────────────
+    try {
+      const user = await User.findById(complaint.userId);
+      if (user && user.email) {
+        const updateMessage = `✅ Your complaint status has been updated to "${status}". ${note || ""}`;
+        await sendComplaintEmail(user, complaint, updateMessage)
+          .catch(err => console.error("User complaint update email failed:", err.message));
+      }
+    } catch (notifErr) {
+      console.error("User status notification failed:", notifErr.message);
+    }
 
     res.status(200).json({
       success: true,

@@ -158,8 +158,30 @@ const getEmailTemplate = (crime, customMessage = null) => {
 };
 
 // Send crime alert email (Professional version)
-export const sendCrimeAlertEmail = async (user, crime, customMessage = null, customHtml = null) => {
+export const sendCrimeAlertEmail = async (user, crime, customMessage = null, customHtml = null, subject = null) => {
   try {
+    if (!user || !user.email) {
+      console.warn("⚠️ Cannot send crime alert email: User email is missing.");
+      return;
+    }
+
+    // Determine the default subject based on the message content if not provided
+    const isVerified = customMessage && customMessage.includes("verified");
+    const isRejected = customMessage && customMessage.includes("rejected");
+    const isForwarded = customMessage && customMessage.includes("forwarded");
+    const isAssigned = customMessage && customMessage.includes("assigned");
+    const isNewReport = customMessage && customMessage.includes("submitted");
+
+    let defaultSubject = "🚨 CRIME ALERT";
+    if (isVerified) defaultSubject = "✅ Report Verified - CrimeTrack";
+    else if (isRejected) defaultSubject = "❌ Report Status Update - CrimeTrack";
+    else if (isForwarded) defaultSubject = "👮 Case Forwarded to Police";
+    else if (isAssigned) defaultSubject = "🚨 New Case Assignment";
+    else if (isNewReport) defaultSubject = "📋 Report Received - CrimeTrack";
+
+    const emailSubject = subject || defaultSubject;
+    const fromAddress = `"CrimeTrack" <${process.env.EMAIL_FROM || process.env.EMAIL_USER}>`;
+
     // Check if this is an admin notification (simple message only)
     const isAdminNotification = customMessage && customMessage.includes("New crime report has been submitted");
     
@@ -394,16 +416,16 @@ export const sendCrimeAlertEmail = async (user, crime, customMessage = null, cus
 
     const transporter = getTransporter();
     await transporter.sendMail({
-      from: `"Crime Track Security" <${process.env.EMAIL_USER}>`,
+      from: fromAddress,
       to: user.email,
-      subject: `🚨 CRIME ALERT`,
+      subject: emailSubject,
       text: customMessage || `Crime Alert: ${crime.title} (${crime.crimeType}) reported at ${crime.location?.address}. Priority: ${crime.priority || "Medium"}.`,
       html: customHtml || html,
     });
 
-    console.log(`✅ Professional Alert Email sent to ${user.email}`);
+    console.log(`✅ Professional Alert Email sent to ${user.email} (Subject: ${emailSubject})`);
   } catch (err) {
-    console.error(`❌ Email error for ${user.email}:`, err.message);
+    console.error(`❌ Email error for ${user.email || "Unknown"}:`, err.message);
   }
 };
 
@@ -412,9 +434,10 @@ export const sendSOSEmail = async (guardian, citizen, coords) => {
   try {
     const mapLink = coords.latitude ? `https://www.google.com/maps?q=${coords.latitude},${coords.longitude}` : "#";
     
+    const fromAddress = `"CrimeTrack Emergency" <${process.env.EMAIL_FROM || process.env.EMAIL_USER}>`;
     const transporter = getTransporter();
     await transporter.sendMail({
-      from: `"CrimeTrack Emergency" <${process.env.EMAIL_USER}>`,
+      from: fromAddress,
       to: guardian.email,
       subject: `🚨 EMERGENCY: ${citizen.username} is in trouble!`,
       html: `

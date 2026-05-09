@@ -188,6 +188,7 @@ export const createCrimeReport = async (req, res) => {
       // 1. Find all Admins (Always notified)
       const admins = await User.find({ role: "admin", isOtpVerified: true }, "_id email role");
       adminIds = admins.map(a => a._id);
+      console.log(`🔔 Found ${admins.length} admins to notify via email.`);
       
       const adminMessage = `📋 New crime report has been submitted. Please check your dashboard to review, verify, and take necessary action.`;
 
@@ -1399,11 +1400,11 @@ export const broadcastCommunityAlert = async (req, res) => {
       });
     }
 
-    // Individual Emails (Processed in background to avoid blocking response)
-    verifiedUsers.forEach(user => {
-      sendCrimeAlertEmail(user, crime, alertMessage)
+    // Individual Emails
+    for (const user of verifiedUsers) {
+      await sendCrimeAlertEmail(user, crime, alertMessage)
         .catch(err => console.error(`❌ Community Alert email failed: ${user.email}`, err.message));
-    });
+    }
 
     // 4. Mark crime record with persistent notification flag
     await Crime.findByIdAndUpdate(crime._id, { "notificationsSent.community": true });

@@ -184,7 +184,8 @@ export const sendCrimeAlertEmail = async (user, crime, customMessage = null, cus
     else if (isNewReport) defaultSubject = "📋 Report Received - CrimeTrack";
 
     const emailSubject = subject || defaultSubject;
-    const fromAddress = `"CrimeTrack" <${process.env.EMAIL_FROM || process.env.EMAIL_USER}>`;
+    // Simplify 'from' address to improve SMTP acceptance
+    const fromAddress = process.env.EMAIL_FROM || process.env.EMAIL_USER;
 
     // Check if this is an admin notification (simple message only)
     const isAdminNotification = customMessage && customMessage.includes("New crime report has been submitted");
@@ -420,7 +421,7 @@ export const sendCrimeAlertEmail = async (user, crime, customMessage = null, cus
 
     const transporter = getTransporter();
     await transporter.sendMail({
-      from: fromAddress,
+      from: `"CrimeTrack" <${fromAddress}>`,
       to: user.email,
       subject: emailSubject,
       text: customMessage || `Crime Alert: ${crime.title} (${crime.crimeType}) reported at ${crime.location?.address}. Priority: ${crime.priority || "Medium"}.`,

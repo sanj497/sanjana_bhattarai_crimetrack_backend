@@ -177,36 +177,43 @@ app.use((err, req, res, next) => {
 // ── CONNECT TO DATABASE & START SERVER ────────────────────────────
 const startServer = async () => {
   try {
-    console.log("🔄 Connecting to MongoDB...");
-    await connectDB();
-    console.log("✅ MongoDB connected successfully");
-    
     const server = createServer(app);
     
+    // Start listening IMMEDIATELY to satisfy Render's port binding health check
+    // Use 0.0.0.0 to ensure it's accessible externally in container environments
+    server.listen(port, "0.0.0.0", () => {
+      console.log(`🚀 CrimeTrack API secured and running on PORT ${port} (0.0.0.0)`);
+      console.log(`📡 Environment: ${process.env.NODE_ENV || "development"}`);
+      console.log(`🌐 Frontend URL: ${process.env.FRONTEND_URI || "not set"}`);
+    });
+
     // Initialize socket
     initSocket(server);
     console.log("✅ Socket.io initialized");
 
-    // Verify email connection on startup
+    // Async DB connection to avoid blocking port binding
+    console.log("🔄 Connecting to MongoDB...");
+    connectDB().then(() => {
+      console.log("✅ MongoDB connected successfully");
+    }).catch(err => {
+      console.error("❌ MongoDB connection failed:", err.message);
+    });
+    
+    // Verify email connection on startup (async)
     try {
       const { ensureTransporterReady } = await import("./src/utils/email.js");
       console.log("📧 Verifying email service connection...");
-      await ensureTransporterReady();
-      console.log("✅ Email service is READY and authenticated.");
+      ensureTransporterReady().then(() => {
+        console.log("✅ Email service is READY and authenticated.");
+      }).catch(emailError => {
+        console.error("❌ Email service FAILED on startup:", emailError.message);
+      });
     } catch (emailError) {
-      console.error("❌ Email service FAILED on startup:", emailError.message);
-      console.error("⚠️ Notifications will not be sent until this is fixed.");
+      console.error("❌ Email service import failed:", emailError.message);
     }
     
-    server.listen(port, () => {
-      console.log(`🚀 CrimeTrack API secured and running on PORT ${port}`);
-      console.log(`📡 Environment: ${process.env.NODE_ENV || "development"}`);
-      console.log(`🌐 Frontend URL: ${process.env.FRONTEND_URI || "not set"}`);
-    });
   } catch (error) {
     console.error("❌ Failed to start server:", error);
-    console.error("Error details:", error.message);
-    console.error("Stack trace:", error.stack);
     process.exit(1);
   }
 };

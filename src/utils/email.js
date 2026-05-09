@@ -426,7 +426,7 @@ export const sendCrimeAlertEmail = async (user, crime, customMessage = null, cus
     }
 
     const transporter = getTransporter();
-    await transporter.sendMail({
+    const info = await transporter.sendMail({
       from: fromAddress,
       to: user.email,
       subject: emailSubject,
@@ -434,7 +434,10 @@ export const sendCrimeAlertEmail = async (user, crime, customMessage = null, cus
       html: customHtml || html,
     });
 
-    console.log(`✅ Professional Alert Email sent to ${user.email} (Subject: ${emailSubject})`);
+    console.log(`✅ Professional Alert Email sent to ${user.email}`);
+    console.log(`✅ SMTP Response: ${info.response}`);
+    console.log(`✅ Message ID: ${info.messageId}`);
+    console.log(`✅ Accepted: ${info.accepted.join(", ")}`);
   } catch (err) {
     console.error(`❌ Email error for ${user.email || "Unknown"}:`, err.message);
   }

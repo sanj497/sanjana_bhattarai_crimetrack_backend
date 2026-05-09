@@ -449,9 +449,12 @@ export const verifyCrimeReport = async (req, res) => {
 
         // Email Notification
         if (crime.userId.email) {
+          console.log(`📧 Dispatching verification alert to Citizen: ${crime.userId.email} (User ID: ${crime.userId._id})`);
           await sendCrimeAlertEmail(crime.userId, crime, reporterMessage).catch((err) =>
-            console.error(`Verification email failed for ${crime.userId.email}:`, err.message)
+            console.error(`❌ Verification email failed for ${crime.userId.email}:`, err.message)
           );
+        } else {
+          console.warn(`⚠️ Cannot email Citizen: User ${crime.userId._id} has no email address in database.`);
         }
       } else {
         // Rejected message

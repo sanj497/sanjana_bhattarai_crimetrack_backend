@@ -1,4 +1,11 @@
 import nodemailer from "nodemailer";
+import dns from "dns";
+
+// Prefer IPv4 for DNS resolution to avoid ENETUNREACH IPv6 issues on certain networks
+if (dns.setDefaultResultOrder) {
+  dns.setDefaultResultOrder('ipv4first');
+}
+
 
 let transporterInstance = null;
 let transporterReady = null;
@@ -23,11 +30,11 @@ export const getTransporter = () => {
 
     // Prioritize 'service: gmail' for Gmail addresses as it's more robust in Nodemailer
     if (isGmail) {
-      console.log("📧 Using direct manual SMTP configuration for Gmail (Port 465/SSL)");
+      console.log("📧 Using manual SMTP configuration for Gmail (STARTTLS/Port 587)");
       transporterInstance = nodemailer.createTransport({
         host: "smtp.gmail.com",
         port: 587,
-        secure: false, // Use STARTTLS for port 587
+        secure: false, 
         auth: {
           user: process.env.EMAIL_USER,
           pass: emailPass,
@@ -35,8 +42,10 @@ export const getTransporter = () => {
         // Force IPv4 to resolve ENETUNREACH IPv6 issues
         family: 4, 
         // Performance & Reliability settings
-        pool: false, 
-        timeout: 20000, // Increased to 20s for slower networks
+        pool: true, // Use pooling for Gmail for better performance
+        maxConnections: 5,
+        maxMessages: 100,
+        timeout: 20000,
         connectionTimeout: 20000,
         greetingTimeout: 20000,
       });
@@ -45,11 +54,12 @@ export const getTransporter = () => {
       transporterInstance = nodemailer.createTransport({
         host: process.env.EMAIL_HOST,
         port: Number(process.env.EMAIL_PORT),
-        secure: process.env.EMAIL_SECURE === "true", // true for port 465, false for 587
+        secure: process.env.EMAIL_SECURE === "true",
         auth: {
           user: process.env.EMAIL_USER,
           pass: emailPass,
         },
+        family: 4, // Force IPv4 for custom SMTP too
         tls: {
           rejectUnauthorized: false
         },
@@ -59,9 +69,10 @@ export const getTransporter = () => {
       });
     } else {
       // Fallback to basic Gmail if nothing else is specified but we have credentials
-      console.log("📧 Using fallback Gmail configuration");
+      console.log("📧 Using fallback Gmail configuration (Forced IPv4)");
       transporterInstance = nodemailer.createTransport({
         service: "gmail",
+        family: 4, // Force IPv4
         auth: {
           user: process.env.EMAIL_USER,
           pass: emailPass,

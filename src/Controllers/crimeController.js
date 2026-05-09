@@ -209,10 +209,10 @@ export const createCrimeReport = async (req, res) => {
       }
 
       // 4. Email Broadcast to Admins
-      admins.forEach(admin => {
-        sendCrimeAlertEmail(admin, crime, adminMessage)
+      for (const admin of admins) {
+        await sendCrimeAlertEmail(admin, crime, adminMessage)
           .catch(err => console.error(`❌ Admin email failed: ${admin.email}`, err.message));
-      });
+      }
 
       console.log("✅ Admin notifications processed successfully");
     } catch (notificationError) {
@@ -274,12 +274,12 @@ export const createCrimeReport = async (req, res) => {
           }
 
           // 3. Email Broadcast
-          nearestCitizens.forEach(citizen => {
+          for (const citizen of nearestCitizens) {
             if (citizen.email) {
-              sendCrimeAlertEmail(citizen, crime, citizenMessage)
+              await sendCrimeAlertEmail(citizen, crime, citizenMessage)
                 .catch(err => console.error(`❌ Citizen email failed: ${citizen.email}`, err.message));
             }
-          });
+          }
         } else {
           // Fallback realtime broadcast if no precise users match radius
           const io = getIO();
@@ -366,7 +366,7 @@ export const updateCrimeStatus = async (req, res) => {
 
       // Email notification
       if (crime.userId.email) {
-        sendCrimeAlertEmail(crime.userId, crime, message).catch((err) =>
+        await sendCrimeAlertEmail(crime.userId, crime, message).catch((err) =>
           console.error(`Status email failed for ${crime.userId.email}:`, err.message)
         );
       }
@@ -441,7 +441,7 @@ export const verifyCrimeReport = async (req, res) => {
 
         // Email Notification
         if (crime.userId.email) {
-          sendCrimeAlertEmail(crime.userId, crime, reporterMessage).catch((err) =>
+          await sendCrimeAlertEmail(crime.userId, crime, reporterMessage).catch((err) =>
             console.error(`Verification email failed for ${crime.userId.email}:`, err.message)
           );
         }
@@ -458,7 +458,7 @@ export const verifyCrimeReport = async (req, res) => {
 
         // Email Notification
         if (crime.userId.email) {
-          sendCrimeAlertEmail(crime.userId, crime, reporterMessage).catch((err) =>
+          await sendCrimeAlertEmail(crime.userId, crime, reporterMessage).catch((err) =>
             console.error(`Rejection email failed for ${crime.userId.email}:`, err.message)
           );
         }

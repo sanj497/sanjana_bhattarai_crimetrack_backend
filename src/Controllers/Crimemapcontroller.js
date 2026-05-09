@@ -165,7 +165,7 @@ export const submitCrimeReport = async (req, res) => {
         expiresAt: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000)
       });
       
-      sendCrimeAlertEmail(req.user, {
+      await sendCrimeAlertEmail(req.user, {
         title: report.crimeType,
         crimeType: report.crimeType,
         description: report.description,
@@ -175,25 +175,25 @@ export const submitCrimeReport = async (req, res) => {
       }, "✅ Your map-based report has been received. Thank you for helping keep the community safe.").catch(e => console.error("Map reporter confirmation failed:", e.message));
 
       // 6. Targeted Emails
-      staff.forEach(user => {
-        sendCrimeAlertEmail(user, {
+      for (const user of staff) {
+        await sendCrimeAlertEmail(user, {
           title: report.crimeType,
           crimeType: report.crimeType,
           location: { address: report.address },
           priority: report.severity || "Medium",
           _id: report._id
         }, adminMessage).catch(e => {});
-      });
+      }
 
-      nearbyCitizens.forEach(user => {
-        sendCrimeAlertEmail(user, {
+      for (const user of nearbyCitizens) {
+        await sendCrimeAlertEmail(user, {
           title: report.crimeType,
           crimeType: report.crimeType,
           location: { address: report.address },
           priority: report.severity || "Medium",
           _id: report._id
         }, safeAlertMessage).catch(e => {});
-      });
+      }
 
     } catch (err) {
       console.error("Broadcast failed for map report:", err.message);

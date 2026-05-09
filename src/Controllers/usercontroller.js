@@ -688,10 +688,11 @@ export const forgotPassword = async (req, res) => {
     await user.save();
 
     try {
-      await getTransporter().sendMail({
-        from: `"CrimeTrack" <${process.env.EMAIL_FROM || process.env.EMAIL_USER}>`,
-        to: email,
+      await sendOtpEmail({
+        email,
+        username: user.username,
         subject: "CrimeTrack - Password Reset Code",
+        context: "Password reset",
         html: `
 <!DOCTYPE html>
 <html>
@@ -716,7 +717,7 @@ export const forgotPassword = async (req, res) => {
           <tr>
             <td style="padding: 48px 48px 32px;">
               <h2 style="margin: 0 0 24px; color: #18181b; font-size: 24px; font-weight: 600;">Reset your password</h2>
-              <p style="margin: 0 0 16px; color: #52525b; font-size: 16px; line-height: 1.6;">Hello,</p>
+              <p style="margin: 0 0 16px; color: #52525b; font-size: 16px; line-height: 1.6;">Hello ${user.username},</p>
               <p style="margin: 0 0 32px; color: #52525b; font-size: 16px; line-height: 1.6;">We received a request to reset your password. Please use the verification code below to proceed:</p>
               
               <!-- OTP Code -->
@@ -756,13 +757,13 @@ export const forgotPassword = async (req, res) => {
 </body>
 </html>
         `,
-        text: `Hello,\n\nWe received a request to reset your password.\n\nYour verification code is: ${otp}\n\nThis code will expire in 10 minutes.\n\nIf you did not request a password reset, you can safely ignore this email. Your account remains secure.\n\nCrimeTrack Support`
+        text: `Hello ${user.username},\n\nWe received a request to reset your password.\n\nYour verification code is: ${otp}\n\nThis code will expire in 10 minutes.\n\nIf you did not request a password reset, you can safely ignore this email. Your account remains secure.\n\nCrimeTrack Support`
       });
     } catch (mailErr) {
-      console.error("FORGOT PASSWORD EMAIL FAILED:", mailErr);
+      console.error("❌ Forgot password email failed for ${email}:", mailErr.message);
       console.log(`🔑 FALLBACK: Email failed. The reset OTP for ${email} is: ${otp}`);
       return res.status(200).json({ 
-        msg: "Email failed to send. Check Network tab for OTP.",
+        msg: "Reset request received, but email failed. Check Network tab for OTP.",
         otp: otp
       });
     }

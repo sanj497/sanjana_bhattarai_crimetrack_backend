@@ -51,9 +51,10 @@ export const sendSOS = async (req, res) => {
 
     // Notify Personal Guardians
     if (req.user && req.user.guardians && req.user.guardians.length > 0) {
-      req.user.guardians.forEach(guardian => {
-        sendSOSEmail(guardian, req.user, { latitude, longitude, accuracy });
-      });
+      for (const guardian of req.user.guardians) {
+        await sendSOSEmail(guardian, req.user, { latitude, longitude, accuracy })
+          .catch(e => console.error(`❌ SOS Guardian Email failed: ${guardian.email}`, e.message));
+      }
     }
     
     // Auto-call nearest police station if location is available

@@ -160,10 +160,14 @@ const getEmailTemplate = (crime, customMessage = null) => {
 // Send crime alert email (Professional version)
 export const sendCrimeAlertEmail = async (user, crime, customMessage = null, customHtml = null, subject = null) => {
   try {
+    await ensureTransporterReady();
+    
     if (!user || !user.email) {
       console.warn("⚠️ Cannot send crime alert email: User email is missing.");
       return;
     }
+
+    console.log(`📧 Attempting to send crime alert email to: ${user.email}`);
 
     // Determine the default subject based on the message content if not provided
     const isVerified = customMessage && customMessage.includes("verified");

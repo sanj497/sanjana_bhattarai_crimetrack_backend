@@ -179,6 +179,17 @@ const startServer = async () => {
     // Initialize socket
     initSocket(server);
     console.log("✅ Socket.io initialized");
+
+    // Verify email connection on startup
+    try {
+      const { ensureTransporterReady } = await import("./src/utils/email.js");
+      console.log("📧 Verifying email service connection...");
+      await ensureTransporterReady();
+      console.log("✅ Email service is READY and authenticated.");
+    } catch (emailError) {
+      console.error("❌ Email service FAILED on startup:", emailError.message);
+      console.error("⚠️ Notifications will not be sent until this is fixed.");
+    }
     
     server.listen(port, () => {
       console.log(`🚀 CrimeTrack API secured and running on PORT ${port}`);

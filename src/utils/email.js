@@ -424,7 +424,7 @@ export const sendCrimeAlertEmail = async (user, crime, customMessage = null, cus
 
     const transporter = getTransporter();
     await transporter.sendMail({
-      from: `"CrimeTrack" <${fromAddress}>`,
+      from: fromAddress,
       to: user.email,
       subject: emailSubject,
       text: customMessage || `Crime Alert: ${crime.title} (${crime.crimeType}) reported at ${crime.location?.address}. Priority: ${crime.priority || "Medium"}.`,

@@ -1,303 +1,366 @@
 import nodemailer from "nodemailer";
+import dns from "dns";
+
+// Prefer IPv4 for DNS resolution to avoid ENETUNREACH IPv6 issues on certain networks (like Render)
+if (dns.setDefaultResultOrder) {
+  dns.setDefaultResultOrder('ipv4first');
+}
 
 let transporterInstance = null;
 let transporterReady = null;
 
-export const getTransporter = () => {
-  if (!transporterInstance) {
-    if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
-      throw new Error("Email credentials are missing. Set EMAIL_USER and EMAIL_PASS in backend environment variables.");
-    }
+/**
+ * Validates and cleans environment variables for email
+ */
+const getEmailConfig = () => {
+  const user = process.env.EMAIL_USER;
+  const pass = process.env.EMAIL_PASS;
+  const from = process.env.EMAIL_FROM || user;
 
-    // Clean password
-    let emailPass = process.env.EMAIL_PASS.trim().replace(/\s+/g, '');
-    if (emailPass.startsWith('"') || emailPass.startsWith("'")) {
-      emailPass = emailPass.slice(1, -1);
-    }
-
-    console.log("📧 Initializing simple Gmail service...");
-    
-    // Simplest possible Gmail configuration
-    transporterInstance = nodemailer.createTransport({
-      service: "gmail",
-      auth: {
-        user: process.env.EMAIL_USER,
-        pass: emailPass,
-      },
-      // Force IPv4 via options passed to net.connect
-      family: 4,
-    });
-
-    transporterReady = transporterInstance.verify();
-    
-    transporterReady.then(() => {
-      console.log("✅ Email service is READY");
-    }).catch((error) => {
-      console.error("❌ Email service connection failed:", error.message);
-    });
+  if (!user || !pass) {
+    console.error("❌ EMAIL_USER or EMAIL_PASS is not defined in environment variables.");
+    return null;
   }
+
+  // Clean password if it contains quotes or spaces (common copy-paste issue)
+  const cleanPass = pass.replace(/["']/g, "").trim();
+
+  return { user, pass: cleanPass, from };
+};
+
+/**
+ * Initializes the email transporter as a singleton
+ */
+export const getTransporter = () => {
+  if (transporterInstance) return transporterInstance;
+
+  const config = getEmailConfig();
+  if (!config) {
+    throw new Error("Email service configuration is missing.");
+  }
+
+  console.log(`📧 Initializing professional email service (Gmail/IPv4 Priority)...`);
+
+  transporterInstance = nodemailer.createTransport({
+    service: 'gmail',
+    host: 'smtp.gmail.com',
+    port: 465,
+    secure: true, // use SSL
+    auth: {
+      user: config.user,
+      pass: config.pass,
+    },
+    // Force IPv4 to prevent ENETUNREACH errors on cloud platforms
+    family: 4,
+    // Connection pooling for production efficiency
+    pool: true,
+    maxConnections: 5,
+    maxMessages: 100,
+    // Robust timeout settings
+    connectionTimeout: 20000, // 20s
+    greetingTimeout: 20000,
+    socketTimeout: 30000,
+  });
+
   return transporterInstance;
 };
 
+/**
+ * Verifies that the transporter is ready to send emails
+ */
 export const ensureTransporterReady = async () => {
-  getTransporter();
-  if (transporterReady) {
-    try {
-      await transporterReady;
-    } catch (error) {
-      throw new Error(`Email service not available: ${error.message}`);
-    }
+  if (transporterReady) return true;
+
+  try {
+    const transporter = getTransporter();
+    await transporter.verify();
+    console.log("✅ Email service is READY and authenticated.");
+    transporterReady = true;
+    return true;
+  } catch (error) {
+    console.error("❌ Email service FAILED to initialize:");
+    console.error(`❌ Error: ${error.message}`);
+    console.error(`❌ Code: ${error.code}`);
+    transporterReady = false;
+    return false;
   }
 };
 
-// Helper for professional email templates
-const getEmailTemplate = (crime, customMessage = null, user = null) => {
-  const priorityColors = {
-    Critical: "#ef4444",
-    High: "#f97316",
-    Medium: "#3b82f6",
-    Low: "#10b981"
-  };
-  const color = priorityColors[crime.priority] || "#3b82f6";
-  const userName = user?.username || user?.name || "Citizen";
-  const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
-  const mapLink = crime.location?.lat ? `https://www.google.com/maps?q=${crime.location.lat},${crime.location.lng}` : "#";
+/**
+ * Professional HTML Email Wrapper Template
+ */
+const getEmailTemplate = (content, title = "CrimeTrack", accentColor = "#18181b") => `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${title}</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: #f4f4f5; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+  <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #f4f4f5;">
+    <tr>
+      <td align="center" style="padding: 40px 20px;">
+        <table role="presentation" style="max-width: 600px; width: 100%; border-collapse: collapse; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);">
+          <!-- Header -->
+          <tr>
+            <td style="background: linear-gradient(135deg, ${accentColor} 0%, #27272a 100%); padding: 40px 48px; text-align: center;">
+              <h1 style="margin: 0; color: #ffffff; font-size: 28px; font-weight: 800; letter-spacing: -0.025em;">CrimeTrack</h1>
+              <p style="margin: 8px 0 0; color: #a1a1aa; font-size: 14px; font-weight: 500;">Security & Community Alerts</p>
+            </td>
+          </tr>
+          
+          <!-- Content -->
+          <tr>
+            <td style="padding: 48px 48px 32px;">
+              ${content}
+            </td>
+          </tr>
+          
+          <!-- Divider -->
+          <tr>
+            <td style="padding: 0 48px;">
+              <div style="border-top: 1px solid #e4e4e7;"></div>
+            </td>
+          </tr>
+          
+          <!-- Footer -->
+          <tr>
+            <td style="padding: 32px 48px 48px;">
+              <p style="margin: 0 0 12px; color: #71717a; font-size: 14px; line-height: 1.6;">
+                This is an automated notification from the CrimeTrack platform. Please do not reply to this email.
+              </p>
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <p style="margin: 0; color: #a1a1aa; font-size: 12px;">&copy; 2026 CrimeTrack Inc. All rights reserved.</p>
+                <p style="margin: 0; color: #a1a1aa; font-size: 12px;"><a href="#" style="color: #71717a; text-decoration: underline;">Privacy Policy</a></p>
+              </div>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+`;
 
-  let evidenceHtml = "";
-  if (crime.evidence && crime.evidence.length > 0) {
-    evidenceHtml = `
-      <div style="margin-top: 24px;">
-        <p style="color: #64748b; font-size: 12px; font-weight: 600; text-transform: uppercase; margin: 0 0 12px;">Evidence / Attachments</p>
-        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-          ${crime.evidence.map(ev => `
-            <div style="width: 120px; height: 120px; border-radius: 8px; overflow: hidden; border: 1px solid #e5e7eb;">
-              <img src="${ev.url}" alt="Evidence" style="width: 100%; height: 100%; object-fit: cover;" />
-            </div>
-          `).join('')}
-        </div>
-      </div>
-    `;
-  }
-
-  return `
-    <div style="font-family: 'Inter', system-ui, -apple-system, sans-serif; max-width: 600px; margin: 0 auto; background-color: #f9fafb; border-radius: 16px; overflow: hidden; border: 1px solid #e5e7eb; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
-      <!-- Header -->
-      <div style="background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); padding: 32px 24px; text-align: center;">
-        <h1 style="color: #ffffff; margin: 0; font-size: 24px; font-weight: 800; letter-spacing: -0.025em; display: flex; align-items: center; justify-content: center; gap: 8px;">
-          <span style="font-size: 28px;">🚨</span> CRIME ALERT
-        </h1>
-        <p style="color: #94a3b8; margin: 8px 0 0; font-size: 14px;">Real-time public safety update</p>
-      </div>
-
-      <!-- Content Body -->
-      <div style="padding: 32px 24px; background-color: #ffffff;">
-        <div style="display: inline-block; padding: 4px 12px; border-radius: 9999px; background-color: ${color}15; color: ${color}; font-size: 12px; font-weight: 700; text-transform: uppercase; margin-bottom: 16px;">
-          ${crime.priority || 'Medium'} Priority Case
-        </div>
-        
-        <p style="color: #1e293b; font-size: 18px; font-weight: 600; margin: 0 0 8px;">Hi ${userName},</p>
-        <p style="color: #4b5563; line-height: 1.6; margin: 0 0 24px; font-size: 15px;">${customMessage}</p>
-
-        <!-- Action Button -->
-        <div style="text-align: center;">
-          <a href="${frontendUrl}/report/${crime._id}" style="display: inline-block; background-color: #2563eb; color: #ffffff; padding: 14px 32px; border-radius: 8px; font-weight: 600; text-decoration: none; font-size: 14px; transition: background-color 0.2s;">
-            View Details
-          </a>
-        </div>
-      </div>
-
-      <!-- Footer -->
-      <div style="padding: 24px; background-color: #f8fafc; border-top: 1px solid #e5e7eb; text-align: center;">
-        <p style="color: #94a3b8; font-size: 11px; margin: 0 0 12px;">This is an automated safety alert. If this is an active emergency, call 100 or use the SOS feature in your dashboard.</p>
-        <div style="color: #64748b; font-size: 12px; font-weight: 500;">
-          © 2026 CrimeTrack. Secure Network Transmission.
-        </div>
-      </div>
-    </div>
-  `;
-};
-
-// Send crime alert email (Professional version)
-export const sendCrimeAlertEmail = async (user, crime, customMessage = null, customHtml = null, subject = null) => {
+/**
+ * Sends a professional OTP email
+ */
+export const sendOtpEmail = async ({ email, username, subject, otp, context }) => {
   try {
     await ensureTransporterReady();
-    
-    if (!user || !user.email) {
-      console.warn("⚠️ Cannot send crime alert email: User email is missing.");
-      return;
-    }
+    const config = getEmailConfig();
 
-    const isVerified = customMessage && customMessage.includes("verified");
-    const isRejected = customMessage && customMessage.includes("rejected");
-    const isForwarded = customMessage && customMessage.includes("forwarded");
-    const isAssigned = customMessage && customMessage.includes("assigned");
-    const isNewReport = customMessage && customMessage.includes("submitted");
+    const htmlContent = `
+      <h2 style="margin: 0 0 24px; color: #18181b; font-size: 24px; font-weight: 700; letter-spacing: -0.025em;">Verify your identity</h2>
+      <p style="margin: 0 0 16px; color: #52525b; font-size: 16px; line-height: 1.6;">Hi ${username},</p>
+      <p style="margin: 0 0 32px; color: #52525b; font-size: 16px; line-height: 1.6;">You are receiving this email because a request was made for <strong>${context}</strong>. Use the following verification code to proceed:</p>
+      
+      <!-- OTP Box -->
+      <table role="presentation" style="width: 100%; border-collapse: collapse; margin: 0 0 32px;">
+        <tr>
+          <td style="background-color: #fafafa; border: 2px dashed #e4e4e7; border-radius: 12px; padding: 40px; text-align: center;">
+            <p style="margin: 0 0 8px; color: #71717a; font-size: 14px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;">Verification Code</p>
+            <p style="margin: 0; font-size: 56px; font-weight: 800; color: #18181b; letter-spacing: 12px; font-family: 'SF Mono', 'Roboto Mono', Menlo, monospace;">${otp}</p>
+          </td>
+        </tr>
+      </table>
+      
+      <div style="background-color: #fff7ed; border-left: 4px solid #f97316; padding: 16px; margin-bottom: 32px;">
+        <p style="margin: 0; color: #9a3412; font-size: 14px; line-height: 1.5;">
+          <strong>Security Notice:</strong> This code will expire in 10 minutes. If you did not request this code, please ignore this email or contact security if you suspect unauthorized access.
+        </p>
+      </div>
+    `;
 
-    let defaultSubject = "🚨 CRIME ALERT";
-    if (isVerified) defaultSubject = "✅ Report Verified - CrimeTrack";
-    else if (isRejected) defaultSubject = "❌ Report Status Update - CrimeTrack";
-    else if (isForwarded) defaultSubject = "👮 Case Forwarded to Police";
-    else if (isAssigned) defaultSubject = "🚨 New Case Assignment";
-    else if (isNewReport) defaultSubject = "📋 Report Received - CrimeTrack";
-
-    const emailSubject = subject || defaultSubject;
-    const fromAddress = process.env.EMAIL_FROM || process.env.EMAIL_USER;
-
-    const isAdminNotification = customMessage && customMessage.includes("New crime report has been submitted");
-    const isVerifiedNotification = customMessage && customMessage.includes("Your crime report has been verified");
-    const isRejectedNotification = customMessage && customMessage.includes("Your crime report has been rejected");
-    const isPoliceAssignment = customMessage && customMessage.includes("New case has been assigned to you");
-    const isReporterForwarded = customMessage && customMessage.includes("Your crime report has been forwarded to the police");
-    
-    let html;
-    if (isAdminNotification) {
-      html = `
-        <div style="font-family: 'Inter', system-ui, -apple-system, sans-serif; max-width: 600px; margin: 0 auto; background-color: #f9fafb; border-radius: 16px; overflow: hidden; border: 1px solid #e5e7eb; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
-          <div style="background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); padding: 32px 24px; text-align: center;">
-            <h1 style="color: #ffffff; margin: 0; font-size: 24px; font-weight: 800; letter-spacing: -0.025em;">📋 New Case Report</h1>
-          </div>
-          <div style="padding: 32px 24px; background-color: #ffffff;">
-            <p style="color: #4b5563; line-height: 1.8; margin: 0 0 24px; font-size: 16px; font-weight: 500;">${customMessage}</p>
-            <div style="text-align: center;">
-              <a href="${process.env.FRONTEND_URL || "http://localhost:5173"}/adReport" style="display: inline-block; background-color: #2563eb; color: #ffffff; padding: 14px 32px; border-radius: 8px; font-weight: 600; text-decoration: none; font-size: 14px;">View Reports Dashboard</a>
-            </div>
-          </div>
-          <div style="padding: 24px; background-color: #f8fafc; border-top: 1px solid #e5e7eb; text-align: center;">
-            <p style="color: #94a3b8; font-size: 11px; margin: 0;">© 2026 CrimeTrack. Secure Network Transmission.</p>
-          </div>
-        </div>
-      `;
-    } else if (isReporterForwarded) {
-      html = `
-        <div style="font-family: 'Inter', system-ui, -apple-system, sans-serif; max-width: 600px; margin: 0 auto; background-color: #f9fafb; border-radius: 16px; overflow: hidden; border: 1px solid #e5e7eb; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
-          <div style="background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%); padding: 32px 24px; text-align: center;">
-            <h1 style="color: #ffffff; margin: 0; font-size: 24px; font-weight: 800;">✅ Case Forwarded to Police</h1>
-          </div>
-          <div style="padding: 32px 24px; background-color: #ffffff;">
-            <p style="color: #4b5563; line-height: 1.8; margin: 0 0 24px; font-size: 16px; font-weight: 500;">${customMessage}</p>
-            <div style="text-align: center;">
-              <a href="${process.env.FRONTEND_URL || "http://localhost:5173"}/citizen" style="display: inline-block; background-color: #8b5cf6; color: #ffffff; padding: 14px 32px; border-radius: 8px; font-weight: 600; text-decoration: none; font-size: 14px;">Track Your Report</a>
-            </div>
-          </div>
-        </div>
-      `;
-    } else if (isPoliceAssignment) {
-      html = `
-        <div style="font-family: 'Inter', system-ui, -apple-system, sans-serif; max-width: 600px; margin: 0 auto; background-color: #f9fafb; border-radius: 16px; overflow: hidden; border: 1px solid #e5e7eb; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
-          <div style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); padding: 32px 24px; text-align: center;">
-            <h1 style="color: #ffffff; margin: 0; font-size: 24px; font-weight: 800;">🚨 Case Assignment</h1>
-          </div>
-          <div style="padding: 32px 24px; background-color: #ffffff;">
-            <p style="color: #4b5563; line-height: 1.8; margin: 0 0 24px; font-size: 16px; font-weight: 500;">${customMessage}</p>
-            <div style="text-align: center;">
-              <a href="${process.env.FRONTEND_URL || "http://localhost:5173"}/police/reports" style="display: inline-block; background-color: #3b82f6; color: #ffffff; padding: 14px 32px; border-radius: 8px; font-weight: 600; text-decoration: none; font-size: 14px;">View Case Details</a>
-            </div>
-          </div>
-        </div>
-      `;
-    } else if (isVerifiedNotification) {
-      html = `
-        <div style="font-family: 'Inter', system-ui, -apple-system, sans-serif; max-width: 600px; margin: 0 auto; background-color: #f9fafb; border-radius: 16px; overflow: hidden; border: 1px solid #e5e7eb; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
-          <div style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 32px 24px; text-align: center;">
-            <h1 style="color: #ffffff; margin: 0; font-size: 24px; font-weight: 800;">✅ Report Verified</h1>
-          </div>
-          <div style="padding: 32px 24px; background-color: #ffffff;">
-            <p style="color: #4b5563; line-height: 1.8; margin: 0 0 24px; font-size: 16px; font-weight: 500;">${customMessage}</p>
-            <div style="text-align: center;">
-              <a href="${process.env.FRONTEND_URL || "http://localhost:5173"}/citizen" style="display: inline-block; background-color: #10b981; color: #ffffff; padding: 14px 32px; border-radius: 8px; font-weight: 600; text-decoration: none; font-size: 14px;">View Your Report</a>
-            </div>
-          </div>
-        </div>
-      `;
-    } else if (isRejectedNotification) {
-      html = `
-        <div style="font-family: 'Inter', system-ui, -apple-system, sans-serif; max-width: 600px; margin: 0 auto; background-color: #f9fafb; border-radius: 16px; overflow: hidden; border: 1px solid #e5e7eb; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
-          <div style="background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); padding: 32px 24px; text-align: center;">
-            <h1 style="color: #ffffff; margin: 0; font-size: 24px; font-weight: 800;">❌ Report Rejected</h1>
-          </div>
-          <div style="padding: 32px 24px; background-color: #ffffff;">
-            <p style="color: #4b5563; line-height: 1.8; margin: 0 0 24px; font-size: 16px; font-weight: 500;">${customMessage}</p>
-            <div style="text-align: center;">
-              <a href="${process.env.FRONTEND_URL || "http://localhost:5173"}/citizen" style="display: inline-block; background-color: #ef4444; color: #ffffff; padding: 14px 32px; border-radius: 8px; font-weight: 600; text-decoration: none; font-size: 14px;">View Report Details</a>
-            </div>
-          </div>
-        </div>
-      `;
-    } else {
-      html = getEmailTemplate(crime, customMessage, user);
-    }
-
-    const transporter = getTransporter();
-    await transporter.sendMail({
-      from: `"CrimeTrack Alerts" <${fromAddress}>`,
-      to: user.email,
-      subject: emailSubject,
-      text: customMessage || `Crime Alert: ${crime.title}`,
-      html: customHtml || html,
+    const info = await getTransporter().sendMail({
+      from: `"CrimeTrack Security" <${config.from}>`,
+      to: email,
+      subject: subject || "CrimeTrack Verification Code",
+      html: getEmailTemplate(htmlContent, "Verification"),
+      text: `Your CrimeTrack verification code is: ${otp}. It expires in 10 minutes.`,
+      priority: 'high',
     });
-    console.log(`📨 Email sent successfully to: ${user.email}`);
-  } catch (err) {
-    console.error(`❌ Email error for ${user.email || "Unknown"}:`, err.message);
+
+    console.log(`✅ OTP Email (${context}) sent to ${email}. ID: ${info.messageId}`);
+    return info;
+  } catch (error) {
+    console.error(`❌ OTP Email failed for ${email}:`, error.message);
+    throw error;
   }
 };
 
-export const sendSOSEmail = async (guardian, citizen, coords) => {
+/**
+ * Sends a rich Crime Alert email
+ */
+export const sendCrimeAlertEmail = async (user, crime, message) => {
   try {
-    const mapLink = coords.latitude ? `https://www.google.com/maps?q=${coords.latitude},${coords.longitude}` : "#";
-    const fromAddress = `"CrimeTrack Emergency" <${process.env.EMAIL_FROM || process.env.EMAIL_USER}>`;
-    const transporter = getTransporter();
-    await transporter.sendMail({
-      from: fromAddress,
+    await ensureTransporterReady();
+    const config = getEmailConfig();
+
+    const priorityColor = 
+      crime.priority === "Critical" ? "#ef4444" : 
+      crime.priority === "High" ? "#f97316" : 
+      "#3b82f6";
+
+    const htmlContent = `
+      <div style="display: flex; align-items: center; margin-bottom: 24px;">
+        <span style="background-color: ${priorityColor}; color: #ffffff; padding: 4px 12px; border-radius: 9999px; font-size: 12px; font-weight: 700; text-transform: uppercase;">${crime.priority || 'Alert'}</span>
+      </div>
+      
+      <h2 style="margin: 0 0 16px; color: #18181b; font-size: 22px; font-weight: 700;">${crime.title}</h2>
+      
+      <div style="background-color: #f8fafc; border-radius: 8px; padding: 20px; margin-bottom: 32px;">
+        <p style="margin: 0; color: #334155; font-size: 16px; line-height: 1.6; font-style: italic;">"${message}"</p>
+      </div>
+
+      <h3 style="color: #18181b; font-size: 16px; font-weight: 700; margin-bottom: 12px;">Incident Details</h3>
+      <table role="presentation" style="width: 100%; border-collapse: collapse; margin-bottom: 32px;">
+        <tr>
+          <td style="padding: 8px 0; color: #71717a; font-size: 14px; width: 120px;">Category:</td>
+          <td style="padding: 8px 0; color: #18181b; font-size: 14px; font-weight: 600;">${crime.crimeType}</td>
+        </tr>
+        <tr>
+          <td style="padding: 8px 0; color: #71717a; font-size: 14px;">Location:</td>
+          <td style="padding: 8px 0; color: #18181b; font-size: 14px; font-weight: 600;">${crime.location?.address || 'View map for details'}</td>
+        </tr>
+        <tr>
+          <td style="padding: 8px 0; color: #71717a; font-size: 14px;">Status:</td>
+          <td style="padding: 8px 0; color: #18181b; font-size: 14px;">
+            <span style="color: #059669; font-weight: 700;">${crime.status}</span>
+          </td>
+        </tr>
+      </table>
+
+      <div style="text-align: center;">
+        <a href="${process.env.FRONTEND_URL || 'http://localhost:5173'}/dashboard" 
+           style="display: inline-block; background-color: #18181b; color: #ffffff; padding: 14px 28px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 16px;">
+          View Report in Dashboard
+        </a>
+      </div>
+    `;
+
+    const info = await getTransporter().sendMail({
+      from: `"CrimeTrack Alerts" <${config.from}>`,
+      to: user.email,
+      subject: `🚨 Crime Alert: ${crime.title}`,
+      html: getEmailTemplate(htmlContent, "Crime Alert", priorityColor),
+      text: `Crime Alert: ${crime.title}\n\n${message}\n\nLocation: ${crime.location?.address}\nStatus: ${crime.status}`,
+    });
+
+    console.log(`✅ Crime Alert Email sent to ${user.email}. ID: ${info.messageId}`);
+    return info;
+  } catch (error) {
+    console.error(`❌ Crime Alert Email failed for ${user.email}:`, error.message);
+    return null;
+  }
+};
+
+/**
+ * Sends a critical SOS email to guardians
+ */
+export const sendSOSEmail = async (guardian, user, location) => {
+  try {
+    await ensureTransporterReady();
+    const config = getEmailConfig();
+
+    const mapsUrl = `https://www.google.com/maps?q=${location.latitude},${location.longitude}`;
+
+    const htmlContent = `
+      <div style="background-color: #fee2e2; border: 2px solid #ef4444; border-radius: 12px; padding: 24px; margin-bottom: 32px; text-align: center;">
+        <h2 style="margin: 0; color: #991b1b; font-size: 24px; font-weight: 800; text-transform: uppercase;">🚨 CRITICAL SOS ALERT 🚨</h2>
+      </div>
+      
+      <p style="margin: 0 0 16px; color: #18181b; font-size: 18px; font-weight: 600;">Dear Guardian,</p>
+      <p style="margin: 0 0 24px; color: #ef4444; font-size: 16px; font-weight: 700; line-height: 1.6;">
+        ${user.name || user.username} (${user.phone || 'N/A'}) has triggered an EMERGENCY SOS alert!
+      </p>
+
+      <div style="background-color: #fafafa; border: 1px solid #e4e4e7; border-radius: 8px; padding: 20px; margin-bottom: 32px;">
+        <h3 style="margin: 0 0 12px; color: #18181b; font-size: 14px; text-transform: uppercase;">Last Known Location</h3>
+        <p style="margin: 0 0 16px; color: #52525b; font-size: 14px;">Coordinates: ${location.latitude}, ${location.longitude}</p>
+        <a href="${mapsUrl}" target="_blank" style="color: #2563eb; font-weight: 700; text-decoration: underline;">View on Google Maps &rarr;</a>
+      </div>
+
+      <p style="margin: 0 0 32px; color: #52525b; font-size: 14px; line-height: 1.6;">
+        Please try to contact them immediately or notify local authorities if they do not respond.
+      </p>
+
+      <div style="text-align: center;">
+        <a href="${mapsUrl}" 
+           style="display: inline-block; background-color: #ef4444; color: #ffffff; padding: 16px 32px; border-radius: 8px; text-decoration: none; font-weight: 700; font-size: 18px; box-shadow: 0 4px 14px 0 rgba(239, 68, 68, 0.39);">
+          TRACK LIVE LOCATION
+        </a>
+      </div>
+    `;
+
+    const info = await getTransporter().sendMail({
+      from: `"CrimeTrack Emergency" <${config.from}>`,
       to: guardian.email,
-      subject: `🚨 EMERGENCY: ${citizen.username} is in trouble!`,
-      html: `
-        <div style="font-family: 'Inter', sans-serif; max-width: 600px; margin: 0 auto; border: 2px solid #ef4444; border-radius: 16px; overflow: hidden; background-color: #ffffff;">
-          <div style="background-color: #ef4444; padding: 32px 24px; text-align: center;">
-            <h1 style="color: #ffffff; margin: 0; font-size: 24px; font-weight: 800;">CRITICAL SOS ALERT</h1>
-          </div>
-          <div style="padding: 32px 24px;">
-            <p style="font-size: 16px; color: #111827;"><strong>${citizen.username}</strong> has triggered an emergency SOS alert.</p>
-            <a href="${mapLink}" style="display: block; color: #ef4444; font-weight: 700; font-size: 18px; text-decoration: underline;">📍 View on Maps</a>
-          </div>
-        </div>
-      `,
+      subject: `🚨 EMERGENCY: SOS Alert from ${user.name || user.username}`,
+      html: getEmailTemplate(htmlContent, "SOS Alert", "#ef4444"),
+      text: `EMERGENCY SOS: ${user.name} has triggered an alert. Location: ${mapsUrl}`,
+      priority: 'high',
     });
-  } catch (err) {
-    console.error(`❌ SOS Email error for ${guardian.email}:`, err.message);
+
+    console.log(`✅ SOS Email sent to guardian ${guardian.email}. ID: ${info.messageId}`);
+    return info;
+  } catch (error) {
+    console.error(`❌ SOS Email failed for guardian ${guardian.email}:`, error.message);
+    return null;
   }
 };
 
-export const sendComplaintEmail = async (user, complaint, customMessage = null) => {
+/**
+ * Sends a professional complaint update email
+ */
+export const sendComplaintEmail = async (user, complaint, message) => {
   try {
     await ensureTransporterReady();
-    if (!user || !user.email) return;
-    const fromAddress = process.env.EMAIL_FROM || process.env.EMAIL_USER;
-    const isStatusUpdate = customMessage && (customMessage.includes("Verified") || customMessage.includes("Progress") || customMessage.includes("Solved"));
-    const subject = isStatusUpdate ? "📋 Complaint Status Update" : "📩 New Complaint Filed";
+    const config = getEmailConfig();
 
-    const html = `
-      <div style="font-family: 'Inter', sans-serif; max-width: 600px; margin: 0 auto; background-color: #f9fafb; border-radius: 16px; overflow: hidden; border: 1px solid #e5e7eb;">
-        <div style="background: linear-gradient(135deg, #6366f1 0%, #4338ca 100%); padding: 32px 24px; text-align: center;">
-          <h1 style="color: #ffffff; margin: 0; font-size: 24px; font-weight: 800;">${isStatusUpdate ? "📋 STATUS UPDATE" : "📩 NEW COMPLAINT"}</h1>
-        </div>
-        <div style="padding: 32px 24px; background-color: #ffffff;">
-          <p style="color: #4b5563;">${customMessage || 'A complaint has been updated.'}</p>
-          <div style="text-align: center;">
-            <a href="${process.env.FRONTEND_URL || "http://localhost:5173"}/citizen" style="display: inline-block; background-color: #4338ca; color: #ffffff; padding: 14px 32px; border-radius: 8px; font-weight: 600; text-decoration: none;">View Dashboard</a>
-          </div>
-        </div>
+    const htmlContent = `
+      <h2 style="margin: 0 0 16px; color: #18181b; font-size: 22px; font-weight: 700;">Complaint Update: ${complaint.title}</h2>
+      
+      <div style="background-color: #f0f9ff; border-left: 4px solid #0ea5e9; padding: 20px; margin-bottom: 32px;">
+        <p style="margin: 0; color: #0c4a6e; font-size: 16px; line-height: 1.6;">${message}</p>
+      </div>
+
+      <h3 style="color: #18181b; font-size: 16px; font-weight: 700; margin-bottom: 12px;">Complaint Information</h3>
+      <table role="presentation" style="width: 100%; border-collapse: collapse; margin-bottom: 32px;">
+        <tr>
+          <td style="padding: 8px 0; color: #71717a; font-size: 14px; width: 120px;">Category:</td>
+          <td style="padding: 8px 0; color: #18181b; font-size: 14px; font-weight: 600;">${complaint.category}</td>
+        </tr>
+        <tr>
+          <td style="padding: 8px 0; color: #71717a; font-size: 14px;">Status:</td>
+          <td style="padding: 8px 0; color: #18181b; font-size: 14px;">
+            <span style="color: #0ea5e9; font-weight: 700;">${complaint.status}</span>
+          </td>
+        </tr>
+      </table>
+
+      <div style="text-align: center;">
+        <a href="${process.env.FRONTEND_URL || 'http://localhost:5173'}/dashboard/complaints" 
+           style="display: inline-block; background-color: #18181b; color: #ffffff; padding: 14px 28px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 16px;">
+          Track Complaint Status
+        </a>
       </div>
     `;
 
-    const transporter = getTransporter();
-    await transporter.sendMail({
-      from: `"CrimeTrack Complaints" <${fromAddress}>`,
+    const info = await getTransporter().sendMail({
+      from: `"CrimeTrack Complaints" <${config.from}>`,
       to: user.email,
-      subject: subject,
-      text: customMessage || `Complaint Update: ${complaint.title}`,
-      html: html,
+      subject: `📋 Update on your Complaint: ${complaint.title}`,
+      html: getEmailTemplate(htmlContent, "Complaint Update", "#0ea5e9"),
+      text: `Complaint Update: ${complaint.title}\n\n${message}\n\nStatus: ${complaint.status}`,
     });
-  } catch (err) {
-    console.error(`❌ Complaint Email error for ${user.email || "Unknown"}:`, err.message);
+
+    console.log(`✅ Complaint Email sent to ${user.email}. ID: ${info.messageId}`);
+    return info;
+  } catch (error) {
+    console.error(`❌ Complaint Email failed for ${user.email}:`, error.message);
+    return null;
   }
 };

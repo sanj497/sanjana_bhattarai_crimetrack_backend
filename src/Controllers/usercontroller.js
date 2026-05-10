@@ -1,7 +1,7 @@
 import User from '../Models/usermodel.js';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import { getTransporter, ensureTransporterReady } from "../utils/email.js";
+import { sendOtpEmail } from "../utils/email.js";
 import { uploadToCloudinary } from "../utils/cloudinaryUpload.js";
 
 // Helper function to get JWT_SECRET
@@ -12,53 +12,7 @@ const getJwtSecret = () => {
   }
   return secret;
 };
-
-// Shared transporter is imported from utils/email.js
-// SMTP verification is handled in the utility if needed, or we can just trust the pool.
-
-/* =========================
-   Generate OTP
-========================= */
-const generateOTP = () => Math.floor(100000 + Math.random() * 900000);
-
-const sendOtpEmail = async ({ email, username, subject, html, text, context }) => {
-  try {
-    console.log(`📧 Attempting to send ${context} OTP to ${email}`);
-    console.log(`📧 Email User: ${process.env.EMAIL_USER}`);
-    console.log(`📧 Email From: ${process.env.EMAIL_FROM}`);
-    
-    await ensureTransporterReady();
-    
-    const info = await getTransporter().sendMail({
-      from: `"CrimeTrack" <${process.env.EMAIL_FROM || process.env.EMAIL_USER}>`,
-      to: email,
-      subject: subject,
-      html: html,
-      text: text || `Your verification code is ready. Please open this email in an HTML-compatible email client to view your verification code.`,
-      headers: {
-        'X-Priority': '3',
-        'X-MSMail-Priority': 'Normal',
-        'Importance': 'Normal',
-        'List-Unsubscribe': `<mailto:${process.env.EMAIL_FROM || process.env.EMAIL_USER}?subject=unsubscribe>`,
-        'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
-        'Feedback-ID': `crimetrack:${context}:production`,
-        'X-Entity-Ref-ID': `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
-      },
-      // Production email settings
-      priority: 'normal',
-      encoding: 'utf-8'
-    });
-    
-    console.log(`✅ ${context} OTP email sent successfully to ${email}`);
-    console.log(`✅ Message ID: ${info.messageId}`);
-    console.log(`✅ Response: ${info.response}`);
-    return info;
-  } catch (error) {
-    console.error(`❌ ${context} OTP email failed for ${email}:`);
-    console.error(`❌ Error: ${error.message}`);
-    console.error(`❌ Error Code: ${error.code}`);
-    console.error(`❌ Full Error:`, error);
-    throw error;
+   throw error;
   }
 };
 
@@ -139,72 +93,11 @@ export const registerStaff = async (req, res) => {
       await sendOtpEmail({
         email,
         username,
+        otp,
         subject: `CrimeTrack ${role === "admin" ? "Admin" : "Police Officer"} Account Verification`,
-        context: "Staff registration",
-        html: `
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Verify Your Account</title>
-</head>
-<body style="margin: 0; padding: 0; background-color: #f4f4f5; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">
-  <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #f4f4f5;">
-    <tr>
-      <td align="center" style="padding: 40px 20px;">
-        <table role="presentation" style="max-width: 600px; width: 100%; border-collapse: collapse; background-color: #ffffff; border-radius: 8px; overflow: hidden;">
-          <!-- Header -->
-          <tr>
-            <td style="background-color: #18181b; padding: 40px 48px; text-align: center;">
-              <h1 style="margin: 0; color: #ffffff; font-size: 24px; font-weight: 600;">CrimeTrack</h1>
-            </td>
-          </tr>
-          
-          <!-- Content -->
-          <tr>
-            <td style="padding: 48px 48px 32px;">
-              <h2 style="margin: 0 0 24px; color: #18181b; font-size: 24px; font-weight: 600;">Verify your email address</h2>
-              <p style="margin: 0 0 16px; color: #52525b; font-size: 16px; line-height: 1.6;">Hi ${username},</p>
-              <p style="margin: 0 0 32px; color: #52525b; font-size: 16px; line-height: 1.6;">Thank you for registering as a ${role === "admin" ? "Admin" : "Police Officer"}. Please use the verification code below to complete your registration:</p>
-              
-              <!-- OTP Code -->
-              <table role="presentation" style="width: 100%; border-collapse: collapse; margin: 0 0 32px;">
-                <tr>
-                  <td style="background-color: #fafafa; border: 1px solid #e4e4e7; border-radius: 8px; padding: 32px; text-align: center;">
-                    <p style="margin: 0 0 8px; color: #71717a; font-size: 14px; font-weight: 500;">Verification code</p>
-                    <p style="margin: 0; font-size: 48px; font-weight: 700; color: #18181b; letter-spacing: 8px; font-family: 'SF Mono', 'Roboto Mono', monospace;">${otp}</p>
-                  </td>
-                </tr>
-              </table>
-              
-              <p style="margin: 0 0 24px; color: #52525b; font-size: 14px; line-height: 1.6;">This code will expire in 10 minutes. If you did not request this verification, you can safely ignore this email.</p>
-            </td>
-          </tr>
-          
-          <!-- Divider -->
-          <tr>
-            <td style="padding: 0 48px;">
-              <div style="border-top: 1px solid #e4e4e7;"></div>
-            </td>
-          </tr>
-          
-          <!-- Footer -->
-          <tr>
-            <td style="padding: 32px 48px 48px;">
-              <p style="margin: 0 0 8px; color: #71717a; font-size: 14px; line-height: 1.6;">Need help? Contact our support team.</p>
-              <p style="margin: 0; color: #a1a1aa; font-size: 12px;">&copy; 2026 CrimeTrack. All rights reserved.</p>
-            </td>
-          </tr>
-        </table>
-      </td>
-    </tr>
-  </table>
-</body>
-</html>
-        `,
-        text: `Hi ${username},\n\nThank you for registering as a ${role === "admin" ? "Admin" : "Police Officer"}.\n\nYour verification code is: ${otp}\n\nThis code will expire in 10 minutes.\n\nIf you did not request this verification, you can safely ignore this email.\n\nCrimeTrack Support`
+        context: "Staff Account Registration"
       });
+    } catch (mailErr) {
     } catch (mailErr) {
       console.error(`❌ Staff OTP email failed for ${email}:`, mailErr.message);
       console.log(`🔑 FALLBACK: Email failed. The OTP for ${email} is: ${otp}`);
@@ -375,76 +268,13 @@ export const register = async (req, res) => {
       await sendOtpEmail({
         email,
         username,
-        subject: role === "police" ? "Verify your police application - OTP" : "Verify your account - OTP",
-        context: "User registration",
-        html: `
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Verify Your Account</title>
-</head>
-<body style="margin: 0; padding: 0; background-color: #f4f4f5; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">
-  <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #f4f4f5;">
-    <tr>
-      <td align="center" style="padding: 40px 20px;">
-        <table role="presentation" style="max-width: 600px; width: 100%; border-collapse: collapse; background-color: #ffffff; border-radius: 8px; overflow: hidden;">
-          <!-- Header -->
-          <tr>
-            <td style="background-color: #18181b; padding: 40px 48px; text-align: center;">
-              <h1 style="margin: 0; color: #ffffff; font-size: 24px; font-weight: 600;">CrimeTrack</h1>
-            </td>
-          </tr>
-          
-          <!-- Content -->
-          <tr>
-            <td style="padding: 48px 48px 32px;">
-              <h2 style="margin: 0 0 24px; color: #18181b; font-size: 24px; font-weight: 600;">${role === "police" ? "Verify your officer application" : "Verify your email address"}</h2>
-              <p style="margin: 0 0 16px; color: #52525b; font-size: 16px; line-height: 1.6;">Hi ${username},</p>
-              <p style="margin: 0 0 32px; color: #52525b; font-size: 16px; line-height: 1.6;">${role === "police" ? "Thank you for applying as a Police Officer. Please use the verification code below to complete your application:" : "Thank you for registering with CrimeTrack. Please use the verification code below to complete your registration:"}</p>
-              
-              <!-- OTP Code -->
-              <table role="presentation" style="width: 100%; border-collapse: collapse; margin: 0 0 32px;">
-                <tr>
-                  <td style="background-color: #fafafa; border: 1px solid #e4e4e7; border-radius: 8px; padding: 32px; text-align: center;">
-                    <p style="margin: 0 0 8px; color: #71717a; font-size: 14px; font-weight: 500;">Verification code</p>
-                    <p style="margin: 0; font-size: 48px; font-weight: 700; color: #18181b; letter-spacing: 8px; font-family: 'SF Mono', 'Roboto Mono', monospace;">${otp}</p>
-                  </td>
-                </tr>
-              </table>
-              
-              ${role === "police" ? `
-              <p style="margin: 0 0 24px; color: #52525b; font-size: 14px; line-height: 1.6;">After verification, your badge and credentials will be reviewed by our admin team before full access is granted.</p>
-              ` : ''}
-              
-              <p style="margin: 0 0 24px; color: #52525b; font-size: 14px; line-height: 1.6;">This code will expire in 10 minutes. If you did not request this verification, you can safely ignore this email.</p>
-            </td>
-          </tr>
-          
-          <!-- Divider -->
-          <tr>
-            <td style="padding: 0 48px;">
-              <div style="border-top: 1px solid #e4e4e7;"></div>
-            </td>
-          </tr>
-          
-          <!-- Footer -->
-          <tr>
-            <td style="padding: 32px 48px 48px;">
-              <p style="margin: 0 0 8px; color: #71717a; font-size: 14px; line-height: 1.6;">Need help? Contact our support team.</p>
-              <p style="margin: 0; color: #a1a1aa; font-size: 12px;">&copy; 2026 CrimeTrack. All rights reserved.</p>
-            </td>
-          </tr>
-        </table>
-      </td>
-    </tr>
-  </table>
-</body>
-</html>
-        `,
-        text: `Hi ${username},\n\n${role === "police" ? "Thank you for applying as a Police Officer." : "Thank you for registering with CrimeTrack."}\n\nYour verification code is: ${otp}\n\n${role === "police" ? "After verification, your badge and credentials will be reviewed by our admin team before full access is granted." : "This code will expire in 10 minutes."}\n\nIf you did not request this verification, you can safely ignore this email.\n\nCrimeTrack Support`
+        otp,
+        subject: role === "police" ? "Verify your police application" : "Verify your CrimeTrack account",
+        context: role === "police" ? "Police Officer Application" : "Account Registration"
       });
+      
+      console.log(`✅ OTP email successfully delivered to ${email}`);
+    } catch (mailErr) {
       
       console.log(`✅ OTP email successfully delivered to ${email}`);
     } catch (mailErr) {
@@ -691,74 +521,11 @@ export const forgotPassword = async (req, res) => {
       await sendOtpEmail({
         email,
         username: user.username,
+        otp,
         subject: "CrimeTrack - Password Reset Code",
-        context: "Password reset",
-        html: `
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Password Reset</title>
-</head>
-<body style="margin: 0; padding: 0; background-color: #f4f4f5; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">
-  <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #f4f4f5;">
-    <tr>
-      <td align="center" style="padding: 40px 20px;">
-        <table role="presentation" style="max-width: 600px; width: 100%; border-collapse: collapse; background-color: #ffffff; border-radius: 8px; overflow: hidden;">
-          <!-- Header -->
-          <tr>
-            <td style="background-color: #18181b; padding: 40px 48px; text-align: center;">
-              <h1 style="margin: 0; color: #ffffff; font-size: 24px; font-weight: 600;">CrimeTrack</h1>
-            </td>
-          </tr>
-          
-          <!-- Content -->
-          <tr>
-            <td style="padding: 48px 48px 32px;">
-              <h2 style="margin: 0 0 24px; color: #18181b; font-size: 24px; font-weight: 600;">Reset your password</h2>
-              <p style="margin: 0 0 16px; color: #52525b; font-size: 16px; line-height: 1.6;">Hello ${user.username},</p>
-              <p style="margin: 0 0 32px; color: #52525b; font-size: 16px; line-height: 1.6;">We received a request to reset your password. Please use the verification code below to proceed:</p>
-              
-              <!-- OTP Code -->
-              <table role="presentation" style="width: 100%; border-collapse: collapse; margin: 0 0 32px;">
-                <tr>
-                  <td style="background-color: #fafafa; border: 1px solid #e4e4e7; border-radius: 8px; padding: 32px; text-align: center;">
-                    <p style="margin: 0 0 8px; color: #71717a; font-size: 14px; font-weight: 500;">Verification code</p>
-                    <p style="margin: 0; font-size: 48px; font-weight: 700; color: #18181b; letter-spacing: 8px; font-family: 'SF Mono', 'Roboto Mono', monospace;">${otp}</p>
-                  </td>
-                </tr>
-              </table>
-              
-              <p style="margin: 0 0 24px; color: #52525b; font-size: 14px; line-height: 1.6;">This code will expire in 10 minutes.</p>
-              
-              <p style="margin: 0; color: #52525b; font-size: 14px; line-height: 1.6;">If you did not request a password reset, you can safely ignore this email. Your account remains secure.</p>
-            </td>
-          </tr>
-          
-          <!-- Divider -->
-          <tr>
-            <td style="padding: 0 48px;">
-              <div style="border-top: 1px solid #e4e4e7;"></div>
-            </td>
-          </tr>
-          
-          <!-- Footer -->
-          <tr>
-            <td style="padding: 32px 48px 48px;">
-              <p style="margin: 0 0 8px; color: #71717a; font-size: 14px; line-height: 1.6;">Need help? Contact our support team.</p>
-              <p style="margin: 0; color: #a1a1aa; font-size: 12px;">&copy; 2026 CrimeTrack. All rights reserved.</p>
-            </td>
-          </tr>
-        </table>
-      </td>
-    </tr>
-  </table>
-</body>
-</html>
-        `,
-        text: `Hello ${user.username},\n\nWe received a request to reset your password.\n\nYour verification code is: ${otp}\n\nThis code will expire in 10 minutes.\n\nIf you did not request a password reset, you can safely ignore this email. Your account remains secure.\n\nCrimeTrack Support`
+        context: "Password Reset Request"
       });
+    } catch (mailErr) {
     } catch (mailErr) {
       console.error("❌ Forgot password email failed for ${email}:", mailErr.message);
       console.log(`🔑 FALLBACK: Email failed. The reset OTP for ${email} is: ${otp}`);

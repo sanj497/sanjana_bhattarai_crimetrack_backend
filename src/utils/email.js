@@ -39,27 +39,25 @@ export const getTransporter = () => {
     throw new Error("Email service configuration is missing.");
   }
 
-  console.log(`📧 Initializing professional email service (Gmail/IPv4 Priority)...`);
+  console.log(`📧 Initializing professional email service (Port 587/STARTTLS/IPv4)...`);
 
   transporterInstance = nodemailer.createTransport({
-    service: 'gmail',
     host: 'smtp.gmail.com',
-    port: 465,
-    secure: true, // use SSL
+    port: 587,
+    secure: false, // Use STARTTLS
     auth: {
       user: config.user,
       pass: config.pass,
     },
-    // Force IPv4 to prevent ENETUNREACH errors on cloud platforms
+    tls: {
+      ciphers: 'SSLv3',
+      rejectUnauthorized: false,
+      servername: 'smtp.gmail.com'
+    },
     family: 4,
-    // Connection pooling for production efficiency
     pool: true,
     maxConnections: 5,
-    maxMessages: 100,
-    // Robust timeout settings
-    connectionTimeout: 20000, // 20s
-    greetingTimeout: 20000,
-    socketTimeout: 30000,
+    connectionTimeout: 20000,
   });
 
   return transporterInstance;
@@ -175,15 +173,19 @@ export const sendOtpEmail = async ({ email, username, subject, otp, context }) =
     `;
 
     const info = await getTransporter().sendMail({
-      from: `"CrimeTrack Security" <${config.from}>`,
+      from: `"CrimeTrack Support" <${config.from}>`,
       to: email,
       subject: subject || "CrimeTrack Verification Code",
       html: getEmailTemplate(htmlContent, "Verification"),
       text: `Your CrimeTrack verification code is: ${otp}. It expires in 10 minutes.`,
       priority: 'high',
+      messageId: `<${Date.now()}.${Math.random().toString(36).substring(7)}@crimetrack.org>`
     });
 
-    console.log(`✅ OTP Email (${context}) sent to ${email}. ID: ${info.messageId}`);
+    console.log(`✅ Email accepted by Gmail for: ${info.accepted.join(", ")}`);
+    if (info.rejected.length > 0) {
+      console.warn(`⚠️ Email rejected for: ${info.rejected.join(", ")}`);
+    }
     return info;
   } catch (error) {
     console.error(`❌ OTP Email failed for ${email}:`, error.message);

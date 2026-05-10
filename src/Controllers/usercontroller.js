@@ -521,7 +521,8 @@ export const forgotPassword = async (req, res) => {
         context: "Password Reset Request"
       });
     } catch (mailErr) {
-      console.error("❌ Forgot password email failed for ${email}:", mailErr.message);
+      console.error(`❌ Forgot password email failed for ${email}:`, mailErr.message);
+      console.error(`❌ Complete error details:`, mailErr);
       console.log(`🔑 FALLBACK: Email failed. The reset OTP for ${email} is: ${otp}`);
       return res.status(200).json({ 
         msg: "Reset request received, but email failed. Check Network tab for OTP.",

@@ -73,7 +73,7 @@ const haversineDistanceKm = (lat1, lng1, lat2, lng2) => {
  * PRODUCTION BROADCAST ENGINE
  * Notifies nearby verified citizens of an approved crime report.
  */
-const broadcastCommunityAlert = async (crime, message) => {
+const dispatchGeospatialBroadcast = async (crime, message) => {
   try {
     const lat = crime.location?.lat;
     const lng = crime.location?.lng;
@@ -547,7 +547,7 @@ export const verifyCrimeReport = async (req, res) => {
     // 3. Targeted Community Broadcast (If Approved)
     if (isApproved) {
       const communityMessage = `🚨 COMMUNITY SAFETY ALERT: A new incident ("${crime.title}") has been verified in your area. Please stay alert and follow safety guidelines. Check your dashboard for full details.`;
-      broadcastCommunityAlert(crime, communityMessage);
+      dispatchGeospatialBroadcast(crime, communityMessage);
     }
 
     return res.json({

@@ -12,9 +12,8 @@ const getJwtSecret = () => {
   }
   return secret;
 };
-   throw error;
-  }
-};
+
+const generateOTP = () => Math.floor(100000 + Math.random() * 900000);
 
 /* =========================
    REGISTER STAFF (Admin / Police) — Send OTP
@@ -97,7 +96,6 @@ export const registerStaff = async (req, res) => {
         subject: `CrimeTrack ${role === "admin" ? "Admin" : "Police Officer"} Account Verification`,
         context: "Staff Account Registration"
       });
-    } catch (mailErr) {
     } catch (mailErr) {
       console.error(`❌ Staff OTP email failed for ${email}:`, mailErr.message);
       console.log(`🔑 FALLBACK: Email failed. The OTP for ${email} is: ${otp}`);
@@ -272,9 +270,6 @@ export const register = async (req, res) => {
         subject: role === "police" ? "Verify your police application" : "Verify your CrimeTrack account",
         context: role === "police" ? "Police Officer Application" : "Account Registration"
       });
-      
-      console.log(`✅ OTP email successfully delivered to ${email}`);
-    } catch (mailErr) {
       
       console.log(`✅ OTP email successfully delivered to ${email}`);
     } catch (mailErr) {
@@ -525,7 +520,6 @@ export const forgotPassword = async (req, res) => {
         subject: "CrimeTrack - Password Reset Code",
         context: "Password Reset Request"
       });
-    } catch (mailErr) {
     } catch (mailErr) {
       console.error("❌ Forgot password email failed for ${email}:", mailErr.message);
       console.log(`🔑 FALLBACK: Email failed. The reset OTP for ${email} is: ${otp}`);

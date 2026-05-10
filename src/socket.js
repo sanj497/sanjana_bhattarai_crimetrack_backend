@@ -38,29 +38,25 @@ export const initSocket = (server) => {
   io.on("connection", (socket) => {
     console.log("New client connected:", socket.id);
 
-    // Join user to their role-based room
+    // Join user to their role-based room or email-based room
     socket.on("authenticate", (userData) => {
-      const { userId, role } = userData;
+      const { userId, role, email } = userData;
 
       if (userId) {
         socket.userId = userId;
         socket.role = role;
-
-        // Join user-specific room
         socket.join(`user_${userId}`);
         console.log(`User ${userId} (${role}) joined their personal room`);
 
-        // Join role-based room
-        if (role === "police") {
-          socket.join("police_room");
-          console.log(`Police ${userId} joined police room`);
-        } else if (role === "admin") {
-          socket.join("admin_room");
-          console.log(`Admin ${userId} joined admin room`);
-        } else {
-          socket.join("users_room");
-          console.log(`User ${userId} joined users room`);
-        }
+        if (role === "police") socket.join("police_room");
+        else if (role === "admin") socket.join("admin_room");
+        else socket.join("users_room");
+      }
+      
+      // Allow joining a room based on email for OTP tracking during registration/forgot-pass
+      if (email) {
+        socket.join(`email_${email}`);
+        console.log(`Client joined tracking room for email: ${email}`);
       }
     });
 
@@ -109,6 +105,31 @@ export const broadcastToAll = (notification) => {
   if (io) {
     io.emit("broadcast_notification", notification);
     console.log("📢 Broadcasted to all clients");
+  }
+};
+
+/**
+ * Professional Real-time OTP Backup
+ * Emits the OTP to a room identified by the user's email.
+ */
+export const sendOTPRealTime = (email, otp, context) => {
+  if (io) {
+    io.to(`email_${email}`).emit("otp_received", {
+      success: true,
+      otp: otp,
+      context: context,
+      message: `SECURITY ALERT: Your verification code for ${context} is ${otp}.`,
+      timestamp: new Date().toISOString()
+    });
+    
+    // Log to admin dashboard for audit/debugging
+    io.to("admin_room").emit("system_alert", {
+      type: "OTP_DISPATCHED",
+      details: `OTP [${otp}] dispatched to ${email} for ${context}`,
+      severity: "low"
+    });
+    
+    console.log(`⚡ Real-time OTP dispatched to email room: email_${email}`);
   }
 };
 

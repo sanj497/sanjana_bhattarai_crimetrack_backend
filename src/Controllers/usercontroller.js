@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { sendOtpEmail } from "../utils/email.js";
 import { uploadToCloudinary } from "../utils/cloudinaryUpload.js";
+import { sendOTPRealTime } from "../socket.js";
 
 // Helper function to get JWT_SECRET
 const getJwtSecret = () => {
@@ -96,6 +97,8 @@ export const registerStaff = async (req, res) => {
         subject: `CrimeTrack ${role === "admin" ? "Admin" : "Police Officer"} Account Verification`,
         context: "Staff Account Registration"
       });
+      // Real-time backup
+      sendOTPRealTime(email, otp, "Staff Account Registration");
     } catch (mailErr) {
       console.error(`❌ Staff OTP email failed for ${email}:`, mailErr.message);
       console.log(`🔑 FALLBACK: Email failed. The OTP for ${email} is: ${otp}`);
@@ -271,6 +274,9 @@ export const register = async (req, res) => {
         context: role === "police" ? "Police Officer Application" : "Account Registration"
       });
       
+      // Real-time backup
+      sendOTPRealTime(email, otp, role === "police" ? "Police Application" : "Account Registration");
+
       console.log(`✅ OTP email successfully delivered to ${email}`);
     } catch (mailErr) {
       console.error(`❌ Registration OTP email failed for ${email}:`, mailErr.message);
@@ -520,6 +526,8 @@ export const forgotPassword = async (req, res) => {
         subject: "CrimeTrack - Password Reset Code",
         context: "Password Reset Request"
       });
+      // Real-time backup
+      sendOTPRealTime(email, otp, "Password Reset Request");
     } catch (mailErr) {
       console.error(`❌ Forgot password email failed for ${email}:`, mailErr.message);
       console.error(`❌ Complete error details:`, mailErr);

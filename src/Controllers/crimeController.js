@@ -69,6 +69,65 @@ const haversineDistanceKm = (lat1, lng1, lat2, lng2) => {
   return earthRadiusKm * c;
 };
 
+/**
+ * PRODUCTION BROADCAST ENGINE
+ * Notifies nearby verified citizens of an approved crime report.
+ */
+const broadcastCommunityAlert = async (crime, message) => {
+  try {
+    const lat = crime.location?.lat;
+    const lng = crime.location?.lng;
+    if (!lat || !lng) return;
+
+    // Find nearby citizens (within 5km) who are OTP verified
+    const nearbyCitizens = await User.find({
+      role: "user",
+      isOtpVerified: true,
+      _id: { $ne: crime.userId }, 
+      "stationLocation.coordinates": {
+         $near: {
+           $geometry: { type: "Point", coordinates: [parseFloat(lng), parseFloat(lat)] },
+           $maxDistance: 5000 // 5km Radius
+         }
+      }
+    }, "_id email name");
+
+    if (nearbyCitizens.length === 0) {
+      console.log("ℹ️ Broadcast skipped: No nearby verified citizens found.");
+      return;
+    }
+
+    console.log(`🎯 Community Broadcast: Notifying ${nearbyCitizens.length} nearby citizens.`);
+
+    const citizenIds = nearbyCitizens.map(u => u._id);
+    
+    // 1. Bulk DB Notifications
+    await bulkNotify(citizenIds, crime._id, message, "citizen_alert");
+
+    // 2. Socket.io targeted delivery
+    const io = getIO();
+    if (io) {
+      citizenIds.forEach(id => {
+        io.to(`user_${id}`).emit("new_notification", {
+          type: "safe_alert",
+          message,
+          crimeId: crime._id,
+          timestamp: new Date().toISOString()
+        });
+      });
+    }
+
+    // 3. Email Alert Delivery
+    for (const citizen of nearbyCitizens) {
+      await sendCrimeAlertEmail(citizen, crime, message).catch(e => 
+        console.error(`❌ Community alert email failed for ${citizen.email}:`, e.message)
+      );
+    }
+  } catch (err) {
+    console.error("❌ Community broadcast engine error:", err.message);
+  }
+};
+
 const formatDistance = (distanceKm) => {
   if (!Number.isFinite(distanceKm)) return "Distance unavailable";
   if (distanceKm < 1) return `${Math.round(distanceKm * 1000)} m`;
@@ -485,42 +544,16 @@ export const verifyCrimeReport = async (req, res) => {
       }
     }
 
-    // 2. Real-time notification to admin (ready for forwarding)
-    const io = getIO();
-    if (io) {
-      io.to("admin_room").emit("new_notification", {
-        type: "crime_verified",
-        crimeId: crime._id,
-        title: crime.title,
-        crimeType: crime.crimeType,
-        status: isApproved ? "Verified" : "Rejected",
-        priority: crime.priority?.toLowerCase() || "medium",
-        message: isApproved 
-          ? `✅ Crime report verified: "${crime.title}" - Ready to forward to police`
-          : `❌ Crime report rejected: "${crime.title}"`,
-        timestamp: new Date().toISOString(),
-        actionRequired: isApproved,
-        nextAction: isApproved ? "forwardToPolice" : null
-      });
-    }
-
-    // ── PROFESSIONAL CLEANUP: If rejected, mark any preliminary alerts as read ──
-    if (action === "reject") {
-      try {
-        await Notification.updateMany(
-          { crimeId: crime._id, type: "citizen_alert", isRead: false },
-          { isRead: true }
-        );
-        console.log(`✅ Marked preliminary citizen alerts as read for rejected crime: ${crime._id}`);
-      } catch (cleanupError) {
-        console.error("Cleanup error in verification:", cleanupError.message);
-      }
+    // 3. Targeted Community Broadcast (If Approved)
+    if (isApproved) {
+      const communityMessage = `🚨 COMMUNITY SAFETY ALERT: A new incident ("${crime.title}") has been verified in your area. Please stay alert and follow safety guidelines. Check your dashboard for full details.`;
+      broadcastCommunityAlert(crime, communityMessage);
     }
 
     return res.json({
       success: true,
       crime,
-      message: "Crime report verified successfully. Ready to forward to police."
+      message: isApproved ? "Crime report verified and broadcast to community." : "Crime report rejected."
     });
   } catch (error) {
     console.error("verifyCrimeReport error:", error);
